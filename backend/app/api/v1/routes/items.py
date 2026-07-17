@@ -65,14 +65,12 @@ async def upload_item(
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Cutout must be a transparent PNG")
 
     cloudinary = CloudinaryService()
-    tag_task = asyncio.create_task(GeminiTagger().tag(tagging_bytes, tagging_type))
-    upload_task = asyncio.create_task(cloudinary.upload_cutout(cutout_bytes, current_user.id))
     try:
-        tags, cloudinary_result = await asyncio.gather(tag_task, upload_task)
+        # Tag first. This avoids uploading orphaned Cloudinary assets whenever
+        # the AI provider is delayed or rate-limited.
+        tags = await GeminiTagger().tag(tagging_bytes, tagging_type)
+        cloudinary_result = await cloudinary.upload_cutout(cutout_bytes, current_user.id)
     except Exception:
-        if upload_task.done() and not upload_task.cancelled() and upload_task.exception() is None:
-            _, uploaded_public_id = upload_task.result()
-            await cloudinary.destroy(uploaded_public_id)
         raise
     cloudinary_url, public_id = cloudinary_result
     item = ClothingItem(

@@ -156,12 +156,12 @@ class _UploadScreenState extends State<UploadScreen> {
     if (source == null) {
       throw StateError('The selected image could not be decoded.');
     }
-    final resized = _resizeToMaxSide(source, 1024);
+    final resized = _resizeToMaxSide(source, 1280);
     final dir = await getTemporaryDirectory();
     final file = File(
       '${dir.path}/drip_tagging_${DateTime.now().microsecondsSinceEpoch}.jpg',
     );
-    await file.writeAsBytes(img.encodeJpg(resized, quality: 82), flush: true);
+    await file.writeAsBytes(img.encodeJpg(resized, quality: 85), flush: true);
     return file;
   }
 
@@ -177,6 +177,9 @@ class _UploadScreenState extends State<UploadScreen> {
       }
       if (response?.statusCode == 401) {
         return 'Your session has expired. Please sign in again.';
+      }
+      if (error.type == DioExceptionType.receiveTimeout) {
+        return 'AI tagging is taking longer than expected. Please try again in a moment.';
       }
       if (error.type == DioExceptionType.connectionError ||
           error.type == DioExceptionType.connectionTimeout) {
