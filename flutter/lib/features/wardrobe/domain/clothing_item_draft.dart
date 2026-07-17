@@ -1,0 +1,41 @@
+class ClothingItemDraft {
+  const ClothingItemDraft({
+    required this.id,
+    required this.cloudinaryUrl,
+    required this.category,
+    this.customCategory,
+    this.color,
+    this.pattern,
+    this.fabric,
+    this.isUniform = false,
+    this.itemName,
+    this.tags = const [],
+    this.confidence = 0,
+  });
+
+  factory ClothingItemDraft.fromJson(Map<String, dynamic> json) => ClothingItemDraft(
+        id: json['id'] as String,
+        cloudinaryUrl: json['cloudinary_url'] as String,
+        category: json['category'] as String? ?? 'Custom',
+        customCategory: json['custom_category'] as String?,
+        color: json['color'] as String?,
+        pattern: json['pattern'] as String?,
+        fabric: json['fabric'] as String?,
+        isUniform: json['is_uniform'] as bool? ?? false,
+        itemName: json['item_name'] as String?,
+        tags: (json['tags'] as List<dynamic>? ?? const []).cast<String>(),
+        confidence: (json['confidence'] as num?)?.toDouble() ?? 0,
+      );
+
+  final String id;
+  final String cloudinaryUrl;
+  final String category;
+  final String? customCategory;
+  final String? color;
+  final String? pattern;
+  final String? fabric;
+  final bool isUniform;
+  final String? itemName;
+  final List<String> tags;
+  final double confidence;
+}
