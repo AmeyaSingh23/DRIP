@@ -200,18 +200,35 @@ class _UploadScreenState extends State<UploadScreen> {
             title: const Text('Review item tags'),
             content: SingleChildScrollView(
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   TextField(
                     controller: name,
-                    decoration: const InputDecoration(labelText: 'Name'),
+                    textInputAction: TextInputAction.next,
+                    decoration: const InputDecoration(
+                      labelText: 'Name',
+                      filled: true,
+                      fillColor: Colors.white,
+                    ),
                   ),
+                  const SizedBox(height: 14),
                   TextField(
                     controller: category,
-                    decoration: const InputDecoration(labelText: 'Category'),
+                    textInputAction: TextInputAction.next,
+                    decoration: const InputDecoration(
+                      labelText: 'Category',
+                      filled: true,
+                      fillColor: Colors.white,
+                    ),
                   ),
+                  const SizedBox(height: 14),
                   TextField(
                     controller: color,
-                    decoration: const InputDecoration(labelText: 'Color'),
+                    decoration: const InputDecoration(
+                      labelText: 'Color',
+                      filled: true,
+                      fillColor: Colors.white,
+                    ),
                   ),
                 ],
               ),
@@ -282,6 +299,14 @@ class _UploadScreenState extends State<UploadScreen> {
                   (_, _, _) => const Icon(Icons.image_not_supported, size: 80),
             ),
             Text('AI confidence: ${(_draft!.confidence * 100).round()}%'),
+            if (_draft!.confidence < 0.6)
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text(
+                  'No clear clothing item was detected. Try one item on a contrasting background.',
+                  textAlign: TextAlign.center,
+                ),
+              ),
             FilledButton(
               onPressed: _saveEdits,
               child: const Text('Review / edit tags'),
