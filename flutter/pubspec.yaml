@@ -1,0 +1,25 @@
+name: drip
+description: DRIP — a private AI wardrobe assistant.
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.7.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  dio: ^5.9.2
+  flutter_riverpod: ^3.3.2
+  flutter_secure_storage: ^10.3.1
+  geolocator: ^14.0.3
+  go_router: ^17.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
