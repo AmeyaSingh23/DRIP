@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'dart:math' as math;
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
@@ -20,47 +22,169 @@ class UploadScreen extends StatefulWidget {
 }
 
 class _UploadScreenState extends State<UploadScreen> {
+  static const _idleStatus = 'Choose a clothing photo';
   final _picker = ImagePicker();
   final _repository = WardrobeRepository(ApiClient());
   ClothingItemDraft? _draft;
   String? _error;
-  String _status = 'Choose a clothing photo';
+  String _status = _idleStatus;
   bool _busy = false;
 
   Future<void> _choose(ImageSource source) async {
-    setState(() { _busy = true; _error = null; _status = 'Opening image…'; });
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+      _draft = null;
+      _status = 'Opening image…';
+    });
     try {
       final picked = await _picker.pickImage(source: source, imageQuality: 92);
-      if (picked == null) return;
+      if (picked == null) {
+        if (mounted) {
+          setState(() => _status = _idleStatus);
+        }
+        return;
+      }
       final original = File(picked.path);
-      setState(() => _status = 'Preparing on-device cutout…');
-      if (!await NativeCutout.isModelAvailable() && !await NativeCutout.downloadModel()) {
-        throw StateError('The on-device model could not be downloaded. Connect once and retry.');
+      if (mounted) setState(() => _status = 'Preparing on-device cutout…');
+      await _ensureCutoutModel();
+      final cutout = await _removeBackground(original);
+      if (mounted) setState(() => _status = 'Optimizing cutout for upload…');
+      final uploadCutout = await _prepareCutoutForUpload(cutout);
+      if (mounted) {
+        setState(() => _status = 'Downscaling the original for Gemini…');
       }
-      final result = await NativeCutout.removeBackground(original.path, options: const CutoutOptions(cropToSubject: true, writeToCache: true));
-      if (result is! CutoutFileSuccess) {
-        throw StateError(result is CutoutFailure ? result.message : 'Could not remove the background.');
-      }
-      setState(() => _status = 'Downscaling the original for Gemini…');
       final taggingImage = await _downscaleForTagging(original);
-      setState(() => _status = 'Identifying and saving tags…');
-      final draft = await _repository.upload(cutout: File(result.path), taggingImage: taggingImage, token: widget.token);
-      if (mounted) setState(() => _draft = draft);
+      if (mounted) setState(() => _status = 'Identifying and saving tags…');
+      final draft = await _repository.upload(
+        cutout: uploadCutout,
+        taggingImage: taggingImage,
+        token: widget.token,
+      );
+      if (mounted) {
+        setState(() {
+          _draft = draft;
+          _status = 'Review the detected tags';
+        });
+      }
     } catch (error) {
-      if (mounted) setState(() => _error = error.toString().replaceFirst('Exception: ', ''));
+      if (mounted) {
+        setState(() {
+          _error = _messageFor(error);
+          _status = _idleStatus;
+        });
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
+  Future<void> _ensureCutoutModel() async {
+    if (await NativeCutout.isModelAvailable()) return;
+    if (mounted) {
+      setState(() => _status = 'Downloading on-device cutout model…');
+    }
+    if (!await NativeCutout.downloadModel()) {
+      throw StateError(
+        'The on-device cutout model could not start downloading. Check your connection and try again.',
+      );
+    }
+
+    // Android downloads this optional ML Kit module separately. A completed
+    // request can still need a moment before the module becomes usable.
+    for (var attempt = 0; attempt < 45; attempt++) {
+      if (await NativeCutout.isModelAvailable()) return;
+      await Future<void>.delayed(const Duration(seconds: 1));
+    }
+    throw StateError(
+      'The on-device cutout model is still downloading. Please try again in a moment.',
+    );
+  }
+
+  Future<File> _removeBackground(File original) async {
+    Future<CutoutResult> remove() => NativeCutout.removeBackground(
+      original.path,
+      options: const CutoutOptions(cropToSubject: true, writeToCache: true),
+    );
+
+    final result = await remove();
+    if (result case CutoutFileSuccess(:final path)) return File(path);
+
+    if (result is CutoutFailure && result.message.contains('optional module')) {
+      await _ensureCutoutModel();
+      final retry = await remove();
+      if (retry case CutoutFileSuccess(:final path)) return File(path);
+      throw StateError(
+        retry is CutoutFailure
+            ? retry.message
+            : 'Could not remove the background.',
+      );
+    }
+    throw StateError(
+      result is CutoutFailure
+          ? result.message
+          : 'Could not remove the background.',
+    );
+  }
+
+  img.Image _resizeToMaxSide(img.Image source, int maxSide) {
+    if (math.max(source.width, source.height) <= maxSide) return source;
+    return source.width >= source.height
+        ? img.copyResize(source, width: maxSide)
+        : img.copyResize(source, height: maxSide);
+  }
+
+  Future<File> _prepareCutoutForUpload(File cutout) async {
+    final source = img.decodeImage(await cutout.readAsBytes());
+    if (source == null) {
+      throw StateError(
+        'The cutout could not be processed. Please choose the photo again.',
+      );
+    }
+    final resized = _resizeToMaxSide(source, 1600);
+    final dir = await getTemporaryDirectory();
+    final file = File(
+      '${dir.path}/drip_cutout_${DateTime.now().microsecondsSinceEpoch}.png',
+    );
+    await file.writeAsBytes(img.encodePng(resized, level: 6), flush: true);
+    return file;
+  }
+
   Future<File> _downscaleForTagging(File original) async {
     final source = img.decodeImage(await original.readAsBytes());
-    if (source == null) throw StateError('The selected image could not be decoded.');
-    final resized = source.width > 1024 ? img.copyResize(source, width: 1024) : source;
+    if (source == null) {
+      throw StateError('The selected image could not be decoded.');
+    }
+    final resized = _resizeToMaxSide(source, 1024);
     final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/drip_tagging_${DateTime.now().microsecondsSinceEpoch}.jpg');
+    final file = File(
+      '${dir.path}/drip_tagging_${DateTime.now().microsecondsSinceEpoch}.jpg',
+    );
     await file.writeAsBytes(img.encodeJpg(resized, quality: 82), flush: true);
     return file;
+  }
+
+  String _messageFor(Object error) {
+    if (error is DioException) {
+      final response = error.response;
+      final data = response?.data;
+      if (data is Map && data['detail'] is String) {
+        return data['detail'] as String;
+      }
+      if (response?.statusCode == 413) {
+        return 'The photo is too large. Please choose a smaller image and try again.';
+      }
+      if (response?.statusCode == 401) {
+        return 'Your session has expired. Please sign in again.';
+      }
+      if (error.type == DioExceptionType.connectionError ||
+          error.type == DioExceptionType.connectionTimeout) {
+        return 'Could not reach DRIP. Check that the backend is running and your phone is connected.';
+      }
+    }
+    if (error is StateError) return error.message.toString();
+    return 'Could not add this item. Please try again.';
   }
 
   Future<void> _saveEdits() async {
@@ -71,48 +195,116 @@ class _UploadScreenState extends State<UploadScreen> {
     final color = TextEditingController(text: draft.color ?? '');
     final result = await showDialog<List<String>>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Review item tags'),
-        content: SingleChildScrollView(child: Column(children: [
-          TextField(controller: name, decoration: const InputDecoration(labelText: 'Name')),
-          TextField(controller: category, decoration: const InputDecoration(labelText: 'Category')),
-          TextField(controller: color, decoration: const InputDecoration(labelText: 'Color')),
-        ])),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context, [name.text, category.text, color.text]), child: const Text('Save')),
-        ],
-      ),
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Review item tags'),
+            content: SingleChildScrollView(
+              child: Column(
+                children: [
+                  TextField(
+                    controller: name,
+                    decoration: const InputDecoration(labelText: 'Name'),
+                  ),
+                  TextField(
+                    controller: category,
+                    decoration: const InputDecoration(labelText: 'Category'),
+                  ),
+                  TextField(
+                    controller: color,
+                    decoration: const InputDecoration(labelText: 'Color'),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed:
+                    () => Navigator.pop(context, [
+                      name.text,
+                      category.text,
+                      color.text,
+                    ]),
+                child: const Text('Save'),
+              ),
+            ],
+          ),
     );
     if (result == null || !mounted) return;
-    setState(() => _status = 'Saving your edits…');
+    setState(() {
+      _error = null;
+      _status = 'Saving your edits…';
+    });
     try {
-      final updated = await _repository.update(draft: draft, token: widget.token, itemName: result[0], category: result[1], color: result[2]);
-      setState(() { _draft = updated; _status = 'Item saved'; });
+      final updated = await _repository.update(
+        draft: draft,
+        token: widget.token,
+        itemName: result[0],
+        category: result[1],
+        color: result[2],
+      );
+      setState(() {
+        _draft = updated;
+        _status = 'Item saved';
+      });
     } catch (error) {
-      setState(() => _error = error.toString());
+      if (mounted) {
+        setState(() {
+          _error = _messageFor(error);
+          _status = 'Review the detected tags';
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text('Add to wardrobe')),
-        body: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Text(_status),
-            if (_error != null) ...[const SizedBox(height: 12), Text(_error!, style: TextStyle(color: Colors.red))],
-            const SizedBox(height: 20),
-            if (_draft != null) ...[
-              Image.network(_draft!.cloudinaryUrl, height: 220, errorBuilder: (_, _, _) => const Icon(Icons.image_not_supported, size: 80)),
-              Text('AI confidence: ${(_draft!.confidence * 100).round()}%'),
-              FilledButton(onPressed: _saveEdits, child: const Text('Review / edit tags')),
-            ] else ...[
-              FilledButton.icon(onPressed: _busy ? null : () => _choose(ImageSource.camera), icon: const Icon(Icons.camera_alt), label: const Text('Take photo')),
-              OutlinedButton.icon(onPressed: _busy ? null : () => _choose(ImageSource.gallery), icon: const Icon(Icons.photo_library), label: const Text('Choose from gallery')),
-            ],
-            if (_busy) const Padding(padding: EdgeInsets.only(top: 20), child: LinearProgressIndicator()),
-          ]),
-        ),
-      );
+    appBar: AppBar(title: const Text('Add to wardrobe')),
+    body: Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(_status),
+          if (_error != null) ...[
+            const SizedBox(height: 12),
+            Text(_error!, style: TextStyle(color: Colors.red)),
+          ],
+          const SizedBox(height: 20),
+          if (_draft != null) ...[
+            Image.network(
+              _draft!.cloudinaryUrl,
+              height: 220,
+              errorBuilder:
+                  (_, _, _) => const Icon(Icons.image_not_supported, size: 80),
+            ),
+            Text('AI confidence: ${(_draft!.confidence * 100).round()}%'),
+            FilledButton(
+              onPressed: _saveEdits,
+              child: const Text('Review / edit tags'),
+            ),
+          ] else ...[
+            FilledButton.icon(
+              onPressed: _busy ? null : () => _choose(ImageSource.camera),
+              icon: const Icon(Icons.camera_alt),
+              label: const Text('Take photo'),
+            ),
+            OutlinedButton.icon(
+              onPressed: _busy ? null : () => _choose(ImageSource.gallery),
+              icon: const Icon(Icons.photo_library),
+              label: const Text('Choose from gallery'),
+            ),
+          ],
+          if (_busy)
+            const Padding(
+              padding: EdgeInsets.only(top: 20),
+              child: LinearProgressIndicator(),
+            ),
+        ],
+      ),
+    ),
+  );
 }

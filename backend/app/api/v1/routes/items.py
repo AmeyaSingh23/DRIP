@@ -59,7 +59,7 @@ async def upload_item(
     session: AsyncSession = Depends(get_db_session),
 ) -> ClothingItemUploadResponse:
     cutout_bytes, tagging_bytes = await asyncio.gather(cutout.read(), tagging_image.read())
-    cutout_type = _validate_image(cutout_bytes, cutout.content_type, 10 * 1024 * 1024, "Cutout")
+    cutout_type = _validate_image(cutout_bytes, cutout.content_type, 20 * 1024 * 1024, "Cutout")
     tagging_type = _validate_image(tagging_bytes, tagging_image.content_type, 4 * 1024 * 1024, "Tagging image")
     if cutout_type != "image/png":
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Cutout must be a transparent PNG")
