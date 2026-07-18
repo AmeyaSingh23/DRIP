@@ -49,6 +49,55 @@ def _outfit_response(outfit: Outfit, items: list[ClothingItem]) -> OutfitRespons
     )
 
 
+async def _outfit_with_items(
+    outfit_id: UUID, user_id: UUID, session: AsyncSession
+) -> tuple[Outfit, list[ClothingItem]]:
+    outfit = await session.scalar(
+        select(Outfit).where(Outfit.id == outfit_id, Outfit.user_id == user_id)
+    )
+    if outfit is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Outfit not found")
+    items = (
+        await session.scalars(
+            select(ClothingItem)
+            .join(OutfitItem, OutfitItem.clothing_item_id == ClothingItem.id)
+            .where(OutfitItem.outfit_id == outfit.id)
+            .order_by(OutfitItem.display_order)
+        )
+    ).all()
+    return outfit, items
+
+
+@router.get("", response_model=list[OutfitResponse])
+async def list_outfits(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+) -> list[OutfitResponse]:
+    outfits = (
+        await session.scalars(
+            select(Outfit)
+            .where(Outfit.user_id == current_user.id)
+            .order_by(Outfit.created_at.desc())
+            .limit(100)
+        )
+    ).all()
+    results = []
+    for outfit in outfits:
+        _, items = await _outfit_with_items(outfit.id, current_user.id, session)
+        results.append(_outfit_response(outfit, items))
+    return results
+
+
+@router.get("/{outfit_id}", response_model=OutfitResponse)
+async def get_outfit(
+    outfit_id: UUID,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+) -> OutfitResponse:
+    outfit, items = await _outfit_with_items(outfit_id, current_user.id, session)
+    return _outfit_response(outfit, items)
+
+
 @router.post("/generate", response_model=OutfitPreview)
 async def generate_outfit(
     payload: OutfitGenerateRequest,

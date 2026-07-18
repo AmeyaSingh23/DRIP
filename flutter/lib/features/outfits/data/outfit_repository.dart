@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 
 import '../../../core/network/api_client.dart';
 import '../domain/outfit_preview.dart';
+import '../domain/saved_outfit.dart';
 
 final class OutfitRepository {
   OutfitRepository(this._client);
@@ -43,4 +44,15 @@ final class OutfitRepository {
         },
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
+
+  Future<List<SavedOutfit>> list({required String token}) async {
+    final response = await _client.dio.get<List<dynamic>>(
+      '/api/v1/outfits',
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+    return (response.data ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(SavedOutfit.fromJson)
+        .toList();
+  }
 }

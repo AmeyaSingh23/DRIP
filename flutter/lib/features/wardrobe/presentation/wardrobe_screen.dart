@@ -215,6 +215,11 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
         title: const Text('Wardrobe'),
         actions: [
           IconButton(
+            onPressed: () => context.push('/outfits', extra: widget.token),
+            tooltip: 'Saved outfits',
+            icon: const Icon(Icons.collections_bookmark_outlined),
+          ),
+          IconButton(
             onPressed: () {
               _searchFocusNode.unfocus();
               context.push('/outfits/generate', extra: widget.token);
