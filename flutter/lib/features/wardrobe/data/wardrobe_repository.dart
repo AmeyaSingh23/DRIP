@@ -45,13 +45,52 @@ final class WardrobeRepository {
     required String token,
     String? itemName,
     String? category,
+    String? customCategory,
     String? color,
   }) async {
     final response = await _client.dio.patch<Map<String, dynamic>>(
       '/api/v1/items/${draft.id}',
-      data: {'item_name': itemName, 'category': category, 'color': color},
+      data: {
+        'item_name': itemName,
+        'category': category,
+        'custom_category': customCategory,
+        'color': color,
+      },
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
     return ClothingItemDraft.fromJson(response.data!);
   }
+
+  Future<List<ClothingItemDraft>> list({
+    required String token,
+    String? category,
+    String? search,
+  }) async {
+    final response = await _client.dio.get<List<dynamic>>(
+      '/api/v1/items',
+      queryParameters: {
+        if (category != null && category != 'All') 'category': category,
+        if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
+      },
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+    return (response.data ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(ClothingItemDraft.fromJson)
+        .toList();
+  }
+
+  Future<void> softDelete({required String itemId, required String token}) =>
+      _client.dio.delete<void>(
+        '/api/v1/items/$itemId',
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+
+  Future<void> permanentlyErase({
+    required String itemId,
+    required String token,
+  }) => _client.dio.delete<void>(
+    '/api/v1/items/$itemId/permanent',
+    options: Options(headers: {'Authorization': 'Bearer $token'}),
+  );
 }

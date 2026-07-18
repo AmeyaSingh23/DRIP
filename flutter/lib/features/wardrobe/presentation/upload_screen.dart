@@ -212,6 +212,9 @@ class _UploadScreenState extends State<UploadScreen> {
     if (draft == null) return;
     final name = TextEditingController(text: draft.itemName ?? '');
     final color = TextEditingController(text: draft.color ?? '');
+    final customCategory = TextEditingController(
+      text: draft.category == 'Custom' ? draft.customCategory ?? '' : '',
+    );
     const categories = [
       'Tops',
       'Bottoms',
@@ -224,82 +227,117 @@ class _UploadScreenState extends State<UploadScreen> {
     ];
     var selectedCategory =
         categories.contains(draft.category) ? draft.category : 'Custom';
+    var showCustomCategoryError = false;
     final result = await showDialog<List<String>>(
       context: context,
       builder:
-          (context) => AlertDialog(
-            title: const Text('Review item tags'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: name,
-                    textInputAction: TextInputAction.next,
-                    decoration: const InputDecoration(
-                      labelText: 'Name',
-                      filled: true,
-                      fillColor: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  StatefulBuilder(
-                    builder:
-                        (context, setDialogState) =>
-                            DropdownButtonFormField<String>(
-                              initialValue: selectedCategory,
-                              decoration: const InputDecoration(
-                                filled: true,
-                                fillColor: Colors.white,
-                                labelText: 'Category',
-                              ),
-                              items:
-                                  categories
-                                      .map(
-                                        (category) => DropdownMenuItem(
-                                          value: category,
-                                          child: Text(category),
-                                        ),
-                                      )
-                                      .toList(),
-                              onChanged: (value) {
-                                if (value != null) {
-                                  setDialogState(
-                                    () => selectedCategory = value,
-                                  );
-                                }
-                              },
+          (context) => StatefulBuilder(
+            builder:
+                (context, setDialogState) => AlertDialog(
+                  title: const Text('Review item tags'),
+                  content: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextField(
+                          key: const ValueKey('item-name'),
+                          controller: name,
+                          textInputAction: TextInputAction.next,
+                          decoration: const InputDecoration(
+                            labelText: 'Name',
+                            filled: true,
+                            fillColor: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        DropdownButtonFormField<String>(
+                          initialValue: selectedCategory,
+                          decoration: const InputDecoration(
+                            filled: true,
+                            fillColor: Colors.white,
+                            labelText: 'Category',
+                          ),
+                          items:
+                              categories
+                                  .map(
+                                    (category) => DropdownMenuItem(
+                                      value: category,
+                                      child: Text(category),
+                                    ),
+                                  )
+                                  .toList(),
+                          onChanged: (value) {
+                            if (value != null) {
+                              setDialogState(() {
+                                selectedCategory = value;
+                                showCustomCategoryError = false;
+                              });
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 14),
+                        Visibility(
+                          visible: selectedCategory == 'Custom',
+                          child: TextField(
+                            key: const ValueKey('custom-category'),
+                            controller: customCategory,
+                            textCapitalization: TextCapitalization.words,
+                            maxLength: 100,
+                            decoration: InputDecoration(
+                              labelText: 'Custom category',
+                              hintText: 'For example: Activewear',
+                              filled: true,
+                              fillColor: Colors.white,
+                              errorText:
+                                  showCustomCategoryError
+                                      ? 'Enter a custom category name.'
+                                      : null,
                             ),
-                  ),
-                  const SizedBox(height: 14),
-                  TextField(
-                    controller: color,
-                    decoration: const InputDecoration(
-                      labelText: 'Color',
-                      filled: true,
-                      fillColor: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        TextField(
+                          key: const ValueKey('item-color'),
+                          controller: color,
+                          decoration: const InputDecoration(
+                            labelText: 'Color',
+                            filled: true,
+                            fillColor: Colors.white,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed:
-                    () => Navigator.pop(context, [
-                      name.text,
-                      selectedCategory,
-                      color.text,
-                    ]),
-                child: const Text('Save'),
-              ),
-            ],
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancel'),
+                    ),
+                    FilledButton(
+                      onPressed: () {
+                        if (selectedCategory == 'Custom' &&
+                            customCategory.text.trim().isEmpty) {
+                          setDialogState(() => showCustomCategoryError = true);
+                          return;
+                        }
+                        Navigator.pop(context, [
+                          name.text.trim(),
+                          selectedCategory,
+                          selectedCategory == 'Custom'
+                              ? customCategory.text.trim()
+                              : '',
+                          color.text.trim(),
+                        ]);
+                      },
+                      child: const Text('Save'),
+                    ),
+                  ],
+                ),
           ),
     );
+    name.dispose();
+    color.dispose();
+    customCategory.dispose();
     if (result == null || !mounted) return;
     setState(() {
       _error = null;
@@ -311,7 +349,8 @@ class _UploadScreenState extends State<UploadScreen> {
         token: widget.token,
         itemName: result[0],
         category: result[1],
-        color: result[2],
+        customCategory: result[2].isEmpty ? null : result[2],
+        color: result[3],
       );
       setState(() {
         _draft = updated;
@@ -380,7 +419,7 @@ class _UploadScreenState extends State<UploadScreen> {
                   SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'For a clean cutout, photograph one item laid flat or hanging on a contrasting background. Worn clothes may keep arms or neck in the cutout.',
+                      'For a clean cutout, photograph one item laid flat or hanging on a contrasting background.',
                     ),
                   ),
                 ],

@@ -5,13 +5,14 @@ from datetime import datetime, timezone
 from io import BytesIO
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 from PIL import Image, UnidentifiedImageError
-from sqlalchemy import select
+from sqlalchemy import String, cast, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db_session
 from app.db.models.clothing_item import ClothingItem
+from app.db.models.outfit import OutfitItem
 from app.db.models.user import User
 from app.schemas.clothing_item import ClothingItemUpdate, ClothingItemUploadResponse
 from app.services.cloudinary_service import CloudinaryService
@@ -52,6 +53,58 @@ def _response(item: ClothingItem) -> ClothingItemUploadResponse:
         ai_confidence=item.ai_confidence,
         user_verified=item.user_verified,
     )
+
+
+async def _active_item_or_404(item_id: UUID, user_id: UUID, session: AsyncSession) -> ClothingItem:
+    item = await session.scalar(
+        select(ClothingItem).where(
+            ClothingItem.id == item_id,
+            ClothingItem.user_id == user_id,
+            ClothingItem.deleted_at.is_(None),
+        )
+    )
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Wardrobe item not found")
+    return item
+
+
+@router.get("", response_model=list[ClothingItemUploadResponse])
+async def list_items(
+    category: str | None = Query(default=None, max_length=50),
+    search: str | None = Query(default=None, max_length=100),
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+) -> list[ClothingItemUploadResponse]:
+    statement = select(ClothingItem).where(
+        ClothingItem.user_id == current_user.id,
+        ClothingItem.deleted_at.is_(None),
+    )
+    if category and category != "All":
+        statement = statement.where(ClothingItem.category == category)
+    if search and (term := search.strip()):
+        pattern = f"%{term}%"
+        statement = statement.where(
+            or_(
+                ClothingItem.item_name.ilike(pattern),
+                ClothingItem.category.ilike(pattern),
+                ClothingItem.custom_category.ilike(pattern),
+                ClothingItem.color.ilike(pattern),
+                ClothingItem.pattern.ilike(pattern),
+                ClothingItem.fabric.ilike(pattern),
+                cast(ClothingItem.tags, String).ilike(pattern),
+            )
+        )
+    items = (await session.scalars(statement.order_by(ClothingItem.created_at.desc()))).all()
+    return [_response(item) for item in items]
+
+
+@router.get("/{item_id}", response_model=ClothingItemUploadResponse)
+async def get_item(
+    item_id: UUID,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+) -> ClothingItemUploadResponse:
+    return _response(await _active_item_or_404(item_id, current_user.id, session))
 
 
 @router.post("/upload", response_model=ClothingItemUploadResponse, status_code=status.HTTP_201_CREATED)
@@ -108,15 +161,7 @@ async def update_item(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
 ) -> ClothingItemUploadResponse:
-    item = await session.scalar(
-        select(ClothingItem).where(
-            ClothingItem.id == item_id,
-            ClothingItem.user_id == current_user.id,
-            ClothingItem.deleted_at.is_(None),
-        )
-    )
-    if item is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Wardrobe item not found")
+    item = await _active_item_or_404(item_id, current_user.id, session)
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(item, field, value)
     item.is_uniform = item.category == "Uniform"
@@ -125,3 +170,37 @@ async def update_item(
     await session.commit()
     await session.refresh(item)
     return _response(item)
+
+
+@router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def soft_delete_item(
+    item_id: UUID,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+) -> Response:
+    item = await _active_item_or_404(item_id, current_user.id, session)
+    item.deleted_at = datetime.now(timezone.utc)
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete("/{item_id}/permanent", status_code=status.HTTP_204_NO_CONTENT)
+async def permanently_erase_item(
+    item_id: UUID,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+) -> Response:
+    item = await _active_item_or_404(item_id, current_user.id, session)
+    referenced_by_outfit = await session.scalar(
+        select(OutfitItem.id).where(OutfitItem.clothing_item_id == item.id).limit(1)
+    )
+    if referenced_by_outfit is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This item is used in a saved outfit. Remove it from the outfit first, or use Remove from wardrobe to preserve history.",
+        )
+    cloudinary = CloudinaryService()
+    await cloudinary.destroy(item.cloudinary_public_id)
+    await session.delete(item)
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
