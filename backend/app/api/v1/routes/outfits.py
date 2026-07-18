@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -96,6 +96,18 @@ async def get_outfit(
 ) -> OutfitResponse:
     outfit, items = await _outfit_with_items(outfit_id, current_user.id, session)
     return _outfit_response(outfit, items)
+
+
+@router.delete("/{outfit_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_outfit(
+    outfit_id: UUID,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+) -> Response:
+    outfit, _ = await _outfit_with_items(outfit_id, current_user.id, session)
+    await session.delete(outfit)
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/generate", response_model=OutfitPreview)

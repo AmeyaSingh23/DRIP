@@ -92,41 +92,51 @@ class _OutfitsScreenState extends State<OutfitsScreen> {
                 itemCount: _outfits.length,
                 itemBuilder: (context, index) {
                   final outfit = _outfits[index];
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 14),
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            outfit.name ?? 'Untitled outfit',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          if (outfit.occasion != null)
+                  return InkWell(
+                    onTap: () async {
+                      final deleted = await context.push<bool>(
+                        '/outfits/${outfit.id}',
+                        extra: widget.token,
+                      );
+                      if (deleted == true) await _load();
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: Card(
+                      margin: const EdgeInsets.only(bottom: 14),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                             Text(
-                              outfit.occasion!,
-                              style: Theme.of(context).textTheme.bodySmall,
+                              outfit.name ?? 'Untitled outfit',
+                              style: Theme.of(context).textTheme.titleMedium,
                             ),
-                          const SizedBox(height: 10),
-                          SizedBox(
-                            height: 150,
-                            child: ListView.separated(
-                              scrollDirection: Axis.horizontal,
-                              itemCount: outfit.items.length,
-                              separatorBuilder:
-                                  (_, _) => const SizedBox(width: 8),
-                              itemBuilder:
-                                  (context, itemIndex) => AspectRatio(
-                                    aspectRatio: .75,
-                                    child: Image.network(
-                                      outfit.items[itemIndex].cloudinaryUrl,
-                                      fit: BoxFit.contain,
+                            if (outfit.occasion != null)
+                              Text(
+                                outfit.occasion!,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            const SizedBox(height: 10),
+                            SizedBox(
+                              height: 150,
+                              child: ListView.separated(
+                                scrollDirection: Axis.horizontal,
+                                itemCount: outfit.items.length,
+                                separatorBuilder:
+                                    (_, _) => const SizedBox(width: 8),
+                                itemBuilder:
+                                    (context, itemIndex) => AspectRatio(
+                                      aspectRatio: .75,
+                                      child: Image.network(
+                                        outfit.items[itemIndex].cloudinaryUrl,
+                                        fit: BoxFit.contain,
+                                      ),
                                     ),
-                                  ),
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   );

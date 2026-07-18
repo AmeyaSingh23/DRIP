@@ -55,4 +55,21 @@ final class OutfitRepository {
         .map(SavedOutfit.fromJson)
         .toList();
   }
+
+  Future<SavedOutfit> get({
+    required String token,
+    required String outfitId,
+  }) async {
+    final response = await _client.dio.get<Map<String, dynamic>>(
+      '/api/v1/outfits/$outfitId',
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+    return SavedOutfit.fromJson(response.data!);
+  }
+
+  Future<void> delete({required String token, required String outfitId}) =>
+      _client.dio.delete<void>(
+        '/api/v1/outfits/$outfitId',
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
 }

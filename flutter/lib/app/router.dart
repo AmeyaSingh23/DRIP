@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../features/auth/presentation/auth_gate.dart';
 import '../features/auth/presentation/register_screen.dart';
 import '../features/outfits/presentation/outfit_generator_screen.dart';
+import '../features/outfits/presentation/outfit_detail_screen.dart';
 import '../features/outfits/presentation/outfits_screen.dart';
 import '../features/wardrobe/presentation/item_detail_screen.dart';
 import '../features/wardrobe/presentation/upload_screen.dart';
@@ -33,6 +34,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/outfits',
         builder:
             (context, state) => OutfitsScreen(token: state.extra! as String),
+      ),
+      GoRoute(
+        path: '/outfits/:outfitId',
+        builder:
+            (context, state) => OutfitDetailScreen(
+              outfitId: state.pathParameters['outfitId']!,
+              token: state.extra! as String,
+            ),
       ),
       GoRoute(
         path: '/wardrobe/items/:itemId',
