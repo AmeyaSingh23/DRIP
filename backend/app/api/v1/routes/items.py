@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from io import BytesIO
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
 from PIL import Image, UnidentifiedImageError
 from sqlalchemy import String, cast, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -206,6 +206,34 @@ async def upload_item(
         await session.rollback()
         await cloudinary.destroy(public_id)
         raise
+    return _response(item)
+
+
+@router.post("/manual", response_model=ClothingItemUploadResponse, status_code=status.HTTP_201_CREATED)
+async def upload_item_manually(
+    cutout: UploadFile = File(...),
+    category: str = Form(...),
+    item_name: str | None = Form(default=None),
+    color: str | None = Form(default=None),
+    custom_category: str | None = Form(default=None),
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+) -> ClothingItemUploadResponse:
+    cutout_bytes = await cutout.read()
+    if _validate_image(cutout_bytes, cutout.content_type, 20 * 1024 * 1024, "Cutout") != "image/png":
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Cutout must be a transparent PNG")
+    cloudinary_url, public_id = await CloudinaryService().upload_cutout(cutout_bytes, current_user.id)
+    item = ClothingItem(
+        user_id=current_user.id, cloudinary_url=cloudinary_url, cloudinary_public_id=public_id,
+        category=category.strip()[:50] or "Custom", custom_category=custom_category.strip()[:100] if custom_category else None,
+        color=color.strip()[:50] if color else None, item_name=item_name.strip()[:120] if item_name else None,
+        is_uniform=category == "Uniform", tags=[], ai_confidence=0, user_verified=True,
+        user_verified_at=datetime.now(timezone.utc),
+    )
+    try:
+        session.add(item); await session.commit(); await session.refresh(item)
+    except Exception:
+        await session.rollback(); await CloudinaryService().destroy(public_id); raise
     return _response(item)
 
 

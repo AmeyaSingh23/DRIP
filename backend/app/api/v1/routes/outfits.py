@@ -17,6 +17,18 @@ from app.services.gemini_outfit_generator import GeminiOutfitGenerator
 router = APIRouter()
 
 
+def _quick_pick(items: list[ClothingItem]) -> tuple[str, str, list[ClothingItem]]:
+    by_category: dict[str, list[ClothingItem]] = {}
+    for item in items: by_category.setdefault(item.category, []).append(item)
+    selected = (by_category.get("Dresses") or by_category.get("Uniform") or [])[:1]
+    if not selected: selected = (by_category.get("Tops") or [])[:1] + (by_category.get("Bottoms") or [])[:1]
+    if not selected: selected = items[:1]
+    selected += (by_category.get("Shoes") or [])[:1]
+    selected += (by_category.get("Outerwear") or by_category.get("Accessories") or [])[:1]
+    unique = list(dict.fromkeys(selected))
+    return "Quick pick", "A reliable combination built from the categories in your wardrobe.", unique
+
+
 async def _active_items(
     item_ids: list[UUID], user_id: UUID, session: AsyncSession
 ) -> list[ClothingItem]:
@@ -129,12 +141,11 @@ async def generate_outfit(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Add wardrobe items before generating an outfit",
         )
-    suggestion = await GeminiOutfitGenerator().generate(
-        items,
-        occasion=payload.occasion,
-        style_notes=payload.style_notes,
-        weather_summary=payload.weather_summary,
-    )
+    try:
+        suggestion = await GeminiOutfitGenerator().generate(items, occasion=payload.occasion, style_notes=payload.style_notes, weather_summary=payload.weather_summary)
+    except HTTPException:
+        name, rationale, selected = _quick_pick(items)
+        return OutfitPreview(name=name, occasion=payload.occasion, rationale=f"Quick pick: {rationale}", item_ids=[item.id for item in selected], items=[_response(item) for item in selected])
     allowed_ids = {item.id for item in items}
     item_ids = list(dict.fromkeys(suggestion.item_ids))
     if not item_ids or any(item_id not in allowed_ids for item_id in item_ids):

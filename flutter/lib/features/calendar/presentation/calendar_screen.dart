@@ -83,6 +83,33 @@ class _CalendarScreenState extends State<CalendarScreen> {
     await _load();
   }
 
+  Future<void> _clear(Map<String, dynamic> entry) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Clear schedule?'),
+            content: const Text('This removes the outfit from this time slot.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Clear'),
+              ),
+            ],
+          ),
+    );
+    if (confirmed != true) return;
+    await _client.dio.delete(
+      '/api/v1/calendar/${entry['id']}',
+      options: Options(headers: {'Authorization': 'Bearer ${widget.token}'}),
+    );
+    await _load();
+  }
+
   String _slotLabel(String slot) =>
       {
         'morning_college': 'Morning / college',
@@ -142,8 +169,16 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                       'No outfit scheduled',
                                 ),
                                 trailing: IconButton(
-                                  icon: const Icon(Icons.add_circle_outline),
-                                  onPressed: () => _schedule(slot),
+                                  icon: Icon(
+                                    entry == null
+                                        ? Icons.add_circle_outline
+                                        : Icons.remove_circle_outline,
+                                  ),
+                                  onPressed:
+                                      () =>
+                                          entry == null
+                                              ? _schedule(slot)
+                                              : _clear(entry),
                                 ),
                               ),
                             );

@@ -41,6 +41,37 @@ final class WardrobeRepository {
     return ClothingItemDraft.fromJson(response.data!);
   }
 
+  Future<ClothingItemDraft> manualUpload({
+    required File cutout,
+    required String token,
+    required String itemName,
+    required String category,
+    required String color,
+    String? customCategory,
+  }) async {
+    final form = FormData.fromMap({
+      'cutout': await MultipartFile.fromFile(
+        cutout.path,
+        filename: 'cutout.png',
+        contentType: MediaType('image', 'png'),
+      ),
+      'item_name': itemName,
+      'category': category,
+      'color': color,
+      if (customCategory != null) 'custom_category': customCategory,
+    });
+    final response = await _client.dio.post<Map<String, dynamic>>(
+      '/api/v1/items/manual',
+      data: form,
+      options: Options(
+        headers: {'Authorization': 'Bearer $token'},
+        sendTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 60),
+      ),
+    );
+    return ClothingItemDraft.fromJson(response.data!);
+  }
+
   Future<ClothingItemDraft> update({
     required ClothingItemDraft draft,
     required String token,

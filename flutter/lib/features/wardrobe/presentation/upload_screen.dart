@@ -28,6 +28,8 @@ class _UploadScreenState extends State<UploadScreen> {
   final _picker = ImagePicker();
   final _repository = WardrobeRepository(ApiClient());
   ClothingItemDraft? _draft;
+  File? _manualCutout;
+  bool _manualTaggingNeeded = false;
   String? _error;
   String _status = _idleStatus;
   bool _busy = false;
@@ -38,6 +40,8 @@ class _UploadScreenState extends State<UploadScreen> {
       _busy = true;
       _error = null;
       _draft = null;
+      _manualCutout = null;
+      _manualTaggingNeeded = false;
       _status = 'Opening image…';
     });
     try {
@@ -70,6 +74,7 @@ class _UploadScreenState extends State<UploadScreen> {
       final cutout = await _removeBackground(editedPhoto);
       if (mounted) setState(() => _status = 'Optimizing cutout for upload…');
       final uploadCutout = await _prepareCutoutForUpload(cutout);
+      _manualCutout = uploadCutout;
       if (mounted) {
         setState(() => _status = 'Downscaling the original for Gemini…');
       }
@@ -90,7 +95,11 @@ class _UploadScreenState extends State<UploadScreen> {
       if (mounted) {
         setState(() {
           _error = _messageFor(error);
-          _status = _idleStatus;
+          _manualTaggingNeeded = _manualCutout != null;
+          _status =
+              _manualTaggingNeeded
+                  ? 'Auto-tagging failed. Add details manually.'
+                  : _idleStatus;
         });
       }
     } finally {
@@ -245,6 +254,55 @@ class _UploadScreenState extends State<UploadScreen> {
     }
   }
 
+  Future<void> _saveManualTags() async {
+    final cutout = _manualCutout;
+    if (cutout == null) return;
+    final result = await showDialog<ItemEditValues>(
+      context: context,
+      builder:
+          (context) => WardrobeItemEditorDialog(
+            item: ClothingItemDraft(
+              id: '',
+              cloudinaryUrl: cutout.path,
+              category: 'Custom',
+            ),
+            title: 'Add item details',
+          ),
+    );
+    if (result == null) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+      _status = 'Saving your item…';
+    });
+    try {
+      final draft = await _repository.manualUpload(
+        cutout: cutout,
+        token: widget.token,
+        itemName: result.itemName,
+        category: result.category,
+        color: result.color,
+        customCategory: result.customCategory,
+      );
+      if (mounted) {
+        setState(() {
+          _draft = draft;
+          _manualTaggingNeeded = false;
+          _status = 'Item saved';
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _error = _messageFor(error);
+          _status = 'Manual save failed. Try again.';
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Add to wardrobe')),
@@ -257,6 +315,14 @@ class _UploadScreenState extends State<UploadScreen> {
           if (_error != null) ...[
             const SizedBox(height: 12),
             Text(_error!, style: TextStyle(color: Colors.red)),
+          ],
+          if (_manualTaggingNeeded && _manualCutout != null) ...[
+            const SizedBox(height: 12),
+            Image.file(_manualCutout!, height: 180),
+            FilledButton(
+              onPressed: _busy ? null : _saveManualTags,
+              child: const Text('Add tags manually'),
+            ),
           ],
           const SizedBox(height: 20),
           if (_draft != null) ...[
