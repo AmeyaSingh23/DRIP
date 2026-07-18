@@ -4,15 +4,8 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
-class RegisterRequest(BaseModel):
-    email: EmailStr
-    password: str = Field(min_length=12, max_length=128)
-    display_name: str | None = Field(default=None, max_length=100)
-
-
-class LoginRequest(BaseModel):
-    email: EmailStr
-    password: str = Field(min_length=1, max_length=128)
+class GoogleAuthRequest(BaseModel):
+    id_token: str = Field(min_length=1, max_length=8192)
 
 
 class UserResponse(BaseModel):

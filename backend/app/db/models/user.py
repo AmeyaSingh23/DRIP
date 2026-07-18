@@ -12,7 +12,6 @@ class User(Base):
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False)
-    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     display_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     gender: Mapped[str | None] = mapped_column(String(20), nullable=True)
     timezone: Mapped[str] = mapped_column(String(64), nullable=False, server_default="UTC")

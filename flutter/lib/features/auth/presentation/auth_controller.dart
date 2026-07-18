@@ -7,12 +7,18 @@ import '../data/auth_repository.dart';
 import '../domain/auth_session.dart';
 
 final apiClientProvider = Provider<ApiClient>((ref) => ApiClient());
-final secureTokenStorageProvider = Provider<SecureTokenStorage>((ref) => SecureTokenStorage());
+final secureTokenStorageProvider = Provider<SecureTokenStorage>(
+  (ref) => SecureTokenStorage(),
+);
 final authRepositoryProvider = Provider<AuthRepository>(
-  (ref) => AuthRepository(ref.watch(apiClientProvider), ref.watch(secureTokenStorageProvider)),
+  (ref) => AuthRepository(
+    ref.watch(apiClientProvider),
+    ref.watch(secureTokenStorageProvider),
+  ),
 );
 
-final authControllerProvider = AsyncNotifierProvider<AuthController, AuthSession?>(AuthController.new);
+final authControllerProvider =
+    AsyncNotifierProvider<AuthController, AuthSession?>(AuthController.new);
 
 final class AuthController extends AsyncNotifier<AuthSession?> {
   AuthRepository get _repository => ref.read(authRepositoryProvider);
@@ -30,25 +36,13 @@ final class AuthController extends AsyncNotifier<AuthSession?> {
     }
   }
 
-  Future<String?> login({required String email, required String password}) async {
+  Future<String?> googleSignIn() async {
     state = const AsyncLoading();
     try {
-      final session = await _repository.login(email: email, password: password);
+      final session = await _repository.googleSignIn();
       state = AsyncData(session);
       return null;
-    } on DioException catch (error) {
-      state = const AsyncData(null);
-      return _messageFor(error);
-    }
-  }
-
-  Future<String?> register({required String email, required String password, String? displayName}) async {
-    state = const AsyncLoading();
-    try {
-      final session = await _repository.register(email: email, password: password, displayName: displayName);
-      state = AsyncData(session);
-      return null;
-    } on DioException catch (error) {
+    } catch (error) {
       state = const AsyncData(null);
       return _messageFor(error);
     }
@@ -59,9 +53,17 @@ final class AuthController extends AsyncNotifier<AuthSession?> {
     state = const AsyncData(null);
   }
 
-  String _messageFor(DioException error) {
+  String _messageFor(Object error) {
+    if (error is StateError) {
+      return error.message.toString();
+    }
+    if (error is! DioException) {
+      return 'Google sign-in did not finish. Please try again.';
+    }
     final body = error.response?.data;
-    if (body is Map<String, dynamic> && body['detail'] is String) return body['detail'] as String;
+    if (body is Map<String, dynamic> && body['detail'] is String) {
+      return body['detail'] as String;
+    }
     return 'Could not reach DRIP. Check the API URL and your connection.';
   }
 }

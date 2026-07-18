@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'auth_controller.dart';
 import 'home_screen.dart';
-import 'login_screen.dart';
+import 'google_sign_in_screen.dart';
 
 class AuthGate extends ConsumerWidget {
   const AuthGate({super.key});
@@ -12,15 +12,12 @@ class AuthGate extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authControllerProvider);
     return authState.when(
-      // Keep the same LoginScreen mounted while a sign-in request is active.
-      // Replacing it with a loading Scaffold disposes its controllers and clears
-      // the email/password whenever the request fails.
-      loading: () => const LoginScreen(),
-      error: (_, _) => const LoginScreen(),
+      loading: () => const GoogleSignInScreen(),
+      error: (_, _) => const GoogleSignInScreen(),
       data:
           (session) =>
               session == null
-                  ? const LoginScreen()
+                  ? const GoogleSignInScreen()
                   : HomeScreen(
                     email: session.user.email,
                     token: session.accessToken,

@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     jwt_issuer: str = "drip-api"
     jwt_audience: str = "drip-mobile"
     cors_origins: list[str] = Field(default_factory=list)
+    google_oauth_web_client_id: str | None = Field(default=None, validation_alias="GOOGLE_OAUTH_WEB_CLIENT_ID")
     gemini_api_key: str | None = None
     gemini_model: str = "gemini-3.5-flash"
     cloudinary_cloud_name: str | None = None

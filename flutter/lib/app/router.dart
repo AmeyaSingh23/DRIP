@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/auth/presentation/auth_gate.dart';
-import '../features/auth/presentation/register_screen.dart';
 import '../features/outfits/presentation/outfit_generator_screen.dart';
 import '../features/outfits/presentation/outfit_detail_screen.dart';
 import '../features/outfits/presentation/outfits_screen.dart';
@@ -15,10 +14,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     initialLocation: '/',
     routes: [
       GoRoute(path: '/', builder: (context, state) => const AuthGate()),
-      GoRoute(
-        path: '/register',
-        builder: (context, state) => const RegisterScreen(),
-      ),
       GoRoute(
         path: '/wardrobe/upload',
         builder:

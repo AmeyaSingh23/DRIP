@@ -1,5 +1,7 @@
 import 'package:dio/dio.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
+import '../../../core/config/app_config.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/storage/secure_token_storage.dart';
 import '../domain/auth_session.dart';
@@ -10,19 +12,32 @@ final class AuthRepository {
 
   final ApiClient _client;
   final SecureTokenStorage _tokenStorage;
+  Future<void>? _googleInitialization;
 
-  Future<AuthSession> register({required String email, required String password, String? displayName}) async {
-    final response = await _client.dio.post<Map<String, dynamic>>(
-      '/api/v1/auth/register',
-      data: {'email': email, 'password': password, 'display_name': displayName},
-    );
-    return _persistSession(response.data!);
-  }
+  Future<AuthSession> googleSignIn() async {
+    final webClientId = AppConfig.googleOAuthWebClientId;
+    if (webClientId.isEmpty) {
+      throw StateError(
+        'Google sign-in is missing its client ID configuration.',
+      );
+    }
 
-  Future<AuthSession> login({required String email, required String password}) async {
+    await (_googleInitialization ??= GoogleSignIn.instance.initialize(
+      serverClientId: webClientId,
+    ));
+    if (!GoogleSignIn.instance.supportsAuthenticate()) {
+      throw StateError('Google sign-in is not supported on this device.');
+    }
+
+    final account = await GoogleSignIn.instance.authenticate();
+    final idToken = account.authentication.idToken;
+    if (idToken == null || idToken.isEmpty) {
+      throw StateError('Google did not return an ID token.');
+    }
+
     final response = await _client.dio.post<Map<String, dynamic>>(
-      '/api/v1/auth/login',
-      data: {'email': email, 'password': password},
+      '/api/v1/auth/google',
+      data: {'id_token': idToken},
     );
     return _persistSession(response.data!);
   }
