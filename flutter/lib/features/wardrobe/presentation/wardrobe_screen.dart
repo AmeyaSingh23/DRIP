@@ -215,6 +215,14 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
         title: const Text('Wardrobe'),
         actions: [
           IconButton(
+            onPressed: () {
+              _searchFocusNode.unfocus();
+              context.push('/outfits/generate', extra: widget.token);
+            },
+            tooltip: 'Create an outfit',
+            icon: const Icon(Icons.auto_awesome_outlined),
+          ),
+          IconButton(
             onPressed: () async {
               _searchFocusNode.unfocus();
               await context.push('/wardrobe/upload', extra: widget.token);
