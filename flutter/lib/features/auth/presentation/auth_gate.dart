@@ -12,9 +12,19 @@ class AuthGate extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authControllerProvider);
     return authState.when(
-      loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+      // Keep the same LoginScreen mounted while a sign-in request is active.
+      // Replacing it with a loading Scaffold disposes its controllers and clears
+      // the email/password whenever the request fails.
+      loading: () => const LoginScreen(),
       error: (_, _) => const LoginScreen(),
-      data: (session) => session == null ? const LoginScreen() : HomeScreen(email: session.user.email, token: session.accessToken),
+      data:
+          (session) =>
+              session == null
+                  ? const LoginScreen()
+                  : HomeScreen(
+                    email: session.user.email,
+                    token: session.accessToken,
+                  ),
     );
   }
 }
