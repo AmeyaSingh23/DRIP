@@ -33,4 +33,6 @@ class ClothingItemUploadResponse(ClothingItemTags):
     id: UUID
     cloudinary_url: str
     cloudinary_public_id: str
+    ai_confidence: float = Field(ge=0.0, le=1.0)
+    user_verified: bool
     created_at: datetime

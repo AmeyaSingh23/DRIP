@@ -29,5 +29,8 @@ class ClothingItem(Base):
     is_uniform: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
     item_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     tags: Mapped[list[str]] = mapped_column(ARRAY(String(50)), nullable=False, server_default=text("'{}'::varchar[]"))
+    ai_confidence: Mapped[float] = mapped_column(nullable=False, server_default=text("0"))
+    user_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    user_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP"))
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

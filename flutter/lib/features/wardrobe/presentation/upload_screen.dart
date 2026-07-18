@@ -11,6 +11,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../../core/network/api_client.dart';
 import '../data/wardrobe_repository.dart';
 import '../domain/clothing_item_draft.dart';
+import 'cutout_editor_screen.dart';
 
 class UploadScreen extends StatefulWidget {
   const UploadScreen({required this.token, super.key});
@@ -39,23 +40,39 @@ class _UploadScreenState extends State<UploadScreen> {
       _status = 'Opening image…';
     });
     try {
-      final picked = await _picker.pickImage(source: source, imageQuality: 92);
+      final picked = await _picker.pickImage(
+        source: source,
+        imageQuality: 95,
+        maxWidth: 1920,
+        maxHeight: 1920,
+      );
       if (picked == null) {
         if (mounted) {
           setState(() => _status = _idleStatus);
         }
         return;
       }
-      final original = File(picked.path);
+      final selectedPhoto = File(picked.path);
+      if (!mounted) return;
+      setState(() => _status = 'Adjust your photo…');
+      final editedPhoto = await Navigator.of(context).push<File>(
+        MaterialPageRoute(
+          builder: (_) => CutoutEditorScreen(image: selectedPhoto),
+        ),
+      );
+      if (editedPhoto == null) {
+        if (mounted) setState(() => _status = _idleStatus);
+        return;
+      }
       if (mounted) setState(() => _status = 'Preparing on-device cutout…');
       await _ensureCutoutModel();
-      final cutout = await _removeBackground(original);
+      final cutout = await _removeBackground(editedPhoto);
       if (mounted) setState(() => _status = 'Optimizing cutout for upload…');
       final uploadCutout = await _prepareCutoutForUpload(cutout);
       if (mounted) {
         setState(() => _status = 'Downscaling the original for Gemini…');
       }
-      final taggingImage = await _downscaleForTagging(original);
+      final taggingImage = await _downscaleForTagging(editedPhoto);
       if (mounted) setState(() => _status = 'Identifying and saving tags…');
       final draft = await _repository.upload(
         cutout: uploadCutout,
@@ -194,8 +211,19 @@ class _UploadScreenState extends State<UploadScreen> {
     final draft = _draft;
     if (draft == null) return;
     final name = TextEditingController(text: draft.itemName ?? '');
-    final category = TextEditingController(text: draft.category);
     final color = TextEditingController(text: draft.color ?? '');
+    const categories = [
+      'Tops',
+      'Bottoms',
+      'Outerwear',
+      'Shoes',
+      'Dresses',
+      'Accessories',
+      'Uniform',
+      'Custom',
+    ];
+    var selectedCategory =
+        categories.contains(draft.category) ? draft.category : 'Custom';
     final result = await showDialog<List<String>>(
       context: context,
       builder:
@@ -215,14 +243,33 @@ class _UploadScreenState extends State<UploadScreen> {
                     ),
                   ),
                   const SizedBox(height: 14),
-                  TextField(
-                    controller: category,
-                    textInputAction: TextInputAction.next,
-                    decoration: const InputDecoration(
-                      labelText: 'Category',
-                      filled: true,
-                      fillColor: Colors.white,
-                    ),
+                  StatefulBuilder(
+                    builder:
+                        (context, setDialogState) =>
+                            DropdownButtonFormField<String>(
+                              initialValue: selectedCategory,
+                              decoration: const InputDecoration(
+                                filled: true,
+                                fillColor: Colors.white,
+                                labelText: 'Category',
+                              ),
+                              items:
+                                  categories
+                                      .map(
+                                        (category) => DropdownMenuItem(
+                                          value: category,
+                                          child: Text(category),
+                                        ),
+                                      )
+                                      .toList(),
+                              onChanged: (value) {
+                                if (value != null) {
+                                  setDialogState(
+                                    () => selectedCategory = value,
+                                  );
+                                }
+                              },
+                            ),
                   ),
                   const SizedBox(height: 14),
                   TextField(
@@ -245,7 +292,7 @@ class _UploadScreenState extends State<UploadScreen> {
                 onPressed:
                     () => Navigator.pop(context, [
                       name.text,
-                      category.text,
+                      selectedCategory,
                       color.text,
                     ]),
                 child: const Text('Save'),
@@ -301,8 +348,13 @@ class _UploadScreenState extends State<UploadScreen> {
               errorBuilder:
                   (_, _, _) => const Icon(Icons.image_not_supported, size: 80),
             ),
-            Text('AI confidence: ${(_draft!.confidence * 100).round()}%'),
-            if (_draft!.confidence < 0.6)
+            Text('AI confidence: ${(_draft!.aiConfidence * 100).round()}%'),
+            if (_draft!.userVerified)
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text('Verified by you'),
+              ),
+            if (!_draft!.userVerified && _draft!.aiConfidence < 0.6)
               const Padding(
                 padding: EdgeInsets.only(top: 8),
                 child: Text(
@@ -315,6 +367,26 @@ class _UploadScreenState extends State<UploadScreen> {
               child: const Text('Review / edit tags'),
             ),
           ] else ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5F1FA),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.lightbulb_outline),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'For a clean cutout, photograph one item laid flat or hanging on a contrasting background. Worn clothes may keep arms or neck in the cutout.',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: _busy ? null : () => _choose(ImageSource.camera),
               icon: const Icon(Icons.camera_alt),

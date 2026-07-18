@@ -10,10 +10,12 @@ class ClothingItemDraft {
     this.isUniform = false,
     this.itemName,
     this.tags = const [],
-    this.confidence = 0,
+    this.aiConfidence = 0,
+    this.userVerified = false,
   });
 
-  factory ClothingItemDraft.fromJson(Map<String, dynamic> json) => ClothingItemDraft(
+  factory ClothingItemDraft.fromJson(Map<String, dynamic> json) =>
+      ClothingItemDraft(
         id: json['id'] as String,
         cloudinaryUrl: json['cloudinary_url'] as String,
         category: json['category'] as String? ?? 'Custom',
@@ -24,7 +26,11 @@ class ClothingItemDraft {
         isUniform: json['is_uniform'] as bool? ?? false,
         itemName: json['item_name'] as String?,
         tags: (json['tags'] as List<dynamic>? ?? const []).cast<String>(),
-        confidence: (json['confidence'] as num?)?.toDouble() ?? 0,
+        aiConfidence:
+            (json['ai_confidence'] as num?)?.toDouble() ??
+            (json['confidence'] as num?)?.toDouble() ??
+            0,
+        userVerified: json['user_verified'] as bool? ?? false,
       );
 
   final String id;
@@ -37,5 +43,6 @@ class ClothingItemDraft {
   final bool isUniform;
   final String? itemName;
   final List<String> tags;
-  final double confidence;
+  final double aiConfidence;
+  final bool userVerified;
 }

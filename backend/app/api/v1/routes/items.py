@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timezone
 from io import BytesIO
 from uuid import UUID
 
@@ -33,7 +34,7 @@ def _validate_image(data: bytes, content_type: str | None, limit: int, label: st
     return content_type
 
 
-def _response(item: ClothingItem, confidence: float) -> ClothingItemUploadResponse:
+def _response(item: ClothingItem) -> ClothingItemUploadResponse:
     return ClothingItemUploadResponse(
         id=item.id,
         cloudinary_url=item.cloudinary_url,
@@ -47,7 +48,9 @@ def _response(item: ClothingItem, confidence: float) -> ClothingItemUploadRespon
         is_uniform=item.is_uniform,
         item_name=item.item_name,
         tags=item.tags,
-        confidence=confidence,
+        confidence=item.ai_confidence,
+        ai_confidence=item.ai_confidence,
+        user_verified=item.user_verified,
     )
 
 
@@ -85,6 +88,7 @@ async def upload_item(
         is_uniform=tags.is_uniform,
         item_name=tags.item_name,
         tags=tags.tags,
+        ai_confidence=tags.confidence,
     )
     try:
         session.add(item)
@@ -94,7 +98,7 @@ async def upload_item(
         await session.rollback()
         await cloudinary.destroy(public_id)
         raise
-    return _response(item, tags.confidence)
+    return _response(item)
 
 
 @router.patch("/{item_id}", response_model=ClothingItemUploadResponse)
@@ -115,8 +119,9 @@ async def update_item(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Wardrobe item not found")
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(item, field, value)
-    if item.category == "Uniform":
-        item.is_uniform = True
+    item.is_uniform = item.category == "Uniform"
+    item.user_verified = True
+    item.user_verified_at = datetime.now(timezone.utc)
     await session.commit()
     await session.refresh(item)
-    return _response(item, 1.0)
+    return _response(item)

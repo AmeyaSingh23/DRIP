@@ -20,6 +20,7 @@ dependencies:
   native_cutout: ^0.2.0
   path_provider: ^2.1.5
   http_parser: ^4.1.2
+  image_cropper: ^12.2.1
 
 dev_dependencies:
   flutter_test:
