@@ -53,6 +53,8 @@ class _CutoutEditorScreenState extends State<CutoutEditorScreen> {
         sourcePath: _current.path,
         compressFormat: ImageCompressFormat.png,
         compressQuality: 100,
+        maxWidth: 1280,
+        maxHeight: 1280,
         uiSettings: [
           AndroidUiSettings(
             toolbarTitle: 'Crop photo',

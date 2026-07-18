@@ -24,6 +24,7 @@ class _OutfitDetailScreenState extends State<OutfitDetailScreen> {
   final _repository = OutfitRepository(ApiClient());
   SavedOutfit? _outfit;
   String? _error;
+  bool _deleting = false;
 
   @override
   void initState() {
@@ -53,6 +54,7 @@ class _OutfitDetailScreenState extends State<OutfitDetailScreen> {
   }
 
   Future<void> _delete() async {
+    if (_deleting) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder:
@@ -75,6 +77,7 @@ class _OutfitDetailScreenState extends State<OutfitDetailScreen> {
           ),
     );
     if (confirmed != true) return;
+    setState(() => _deleting = true);
     try {
       await _repository.delete(token: widget.token, outfitId: widget.outfitId);
       if (mounted) context.pop(true);
@@ -86,69 +89,82 @@ class _OutfitDetailScreenState extends State<OutfitDetailScreen> {
           ),
         );
       }
+    } finally {
+      if (mounted) setState(() => _deleting = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final outfit = _outfit;
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(outfit?.name ?? 'Outfit'),
-        actions: [
-          if (outfit != null)
-            IconButton(
-              onPressed: _delete,
-              icon: const Icon(Icons.delete_outline),
-              tooltip: 'Delete outfit',
-            ),
-        ],
-      ),
-      body:
-          _error != null
-              ? Center(child: Text(_error!))
-              : outfit == null
-              ? const Center(child: CircularProgressIndicator())
-              : ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  if (outfit.occasion != null)
-                    Chip(label: Text(outfit.occasion!)),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${outfit.items.length} wardrobe items',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 10),
-                  ...outfit.items.map(
-                    (item) => Card(
-                      child: ListTile(
-                        onTap:
-                            () => context.push(
-                              '/wardrobe/items/${item.id}',
-                              extra: widget.token,
+    return PopScope(
+      canPop: !_deleting,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _deleting && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('The outfit is still being deleted.')),
+          );
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(outfit?.name ?? 'Outfit'),
+          automaticallyImplyLeading: !_deleting,
+          actions: [
+            if (outfit != null)
+              IconButton(
+                onPressed: _deleting ? null : _delete,
+                icon: const Icon(Icons.delete_outline),
+                tooltip: 'Delete outfit',
+              ),
+          ],
+        ),
+        body:
+            _error != null
+                ? Center(child: Text(_error!))
+                : outfit == null
+                ? const Center(child: CircularProgressIndicator())
+                : ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    if (outfit.occasion != null)
+                      Chip(label: Text(outfit.occasion!)),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${outfit.items.length} wardrobe items',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 10),
+                    ...outfit.items.map(
+                      (item) => Card(
+                        child: ListTile(
+                          onTap:
+                              () => context.push(
+                                '/wardrobe/items/${item.id}',
+                                extra: widget.token,
+                              ),
+                          leading: SizedBox(
+                            width: 56,
+                            height: 56,
+                            child: Image.network(
+                              item.cloudinaryUrl,
+                              fit: BoxFit.contain,
                             ),
-                        leading: SizedBox(
-                          width: 56,
-                          height: 56,
-                          child: Image.network(
-                            item.cloudinaryUrl,
-                            fit: BoxFit.contain,
                           ),
+                          title: Text(item.itemName ?? item.category),
+                          subtitle: Text(
+                            [
+                              item.color,
+                              item.pattern,
+                            ].whereType<String>().join(' · '),
+                          ),
+                          trailing: const Icon(Icons.chevron_right),
                         ),
-                        title: Text(item.itemName ?? item.category),
-                        subtitle: Text(
-                          [
-                            item.color,
-                            item.pattern,
-                          ].whereType<String>().join(' · '),
-                        ),
-                        trailing: const Icon(Icons.chevron_right),
                       ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+      ),
     );
   }
 }

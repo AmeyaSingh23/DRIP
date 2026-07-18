@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/network/api_client.dart';
 import '../data/wardrobe_repository.dart';
 import '../domain/clothing_item_draft.dart';
+import 'upload_screen.dart';
 
 class WardrobeScreen extends ConsumerStatefulWidget {
   const WardrobeScreen({required this.email, required this.token, super.key});
@@ -35,7 +36,9 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
   List<ClothingItemDraft> _items = const [];
   String _selectedCategory = 'All';
   bool _loading = true;
+  bool _deleting = false;
   String? _error;
+  int _loadEpoch = 0;
 
   @override
   void initState() {
@@ -51,13 +54,14 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
   }
 
   Future<void> _load() async {
+    final requestEpoch = ++_loadEpoch;
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
       final items = await _repository.list(token: widget.token);
-      if (mounted) {
+      if (mounted && requestEpoch == _loadEpoch) {
         setState(() {
           _items = items;
           // Custom tabs only exist while at least one active item uses them.
@@ -68,9 +72,13 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
         });
       }
     } on DioException catch (error) {
-      if (mounted) setState(() => _error = _messageFor(error));
+      if (mounted && requestEpoch == _loadEpoch) {
+        setState(() => _error = _messageFor(error));
+      }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && requestEpoch == _loadEpoch) {
+        setState(() => _loading = false);
+      }
     }
   }
 
@@ -122,6 +130,7 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
     ClothingItemDraft item, {
     required bool permanent,
   }) async {
+    if (_deleting) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder:
@@ -151,6 +160,7 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
           ),
     );
     if (confirmed != true) return;
+    setState(() => _deleting = true);
     try {
       if (permanent) {
         await _repository.permanentlyErase(
@@ -167,6 +177,8 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
           context,
         ).showSnackBar(SnackBar(content: Text(_messageFor(error))));
       }
+    } finally {
+      if (mounted) setState(() => _deleting = false);
     }
   }
 
@@ -214,11 +226,20 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
         title: const Text('Wardrobe'),
         actions: [
           IconButton(
-            onPressed: () async {
-              _searchFocusNode.unfocus();
-              await context.push('/wardrobe/upload', extra: widget.token);
-              _load();
-            },
+            onPressed:
+                _deleting
+                    ? null
+                    : () async {
+                      _searchFocusNode.unfocus();
+                      await context.push(
+                        '/wardrobe/upload',
+                        extra: UploadRouteArgs(
+                          token: widget.token,
+                          email: widget.email,
+                        ),
+                      );
+                      if (mounted) await _load();
+                    },
             tooltip: 'Add wardrobe item',
             icon: const Icon(Icons.add_photo_alternate_outlined),
           ),
@@ -300,10 +321,13 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
                               );
                               if (changed == true) await _load();
                             },
-                            onLongPress: () {
-                              _searchFocusNode.unfocus();
-                              _showActions(item);
-                            },
+                            onLongPress:
+                                _deleting
+                                    ? null
+                                    : () {
+                                      _searchFocusNode.unfocus();
+                                      _showActions(item);
+                                    },
                             borderRadius: BorderRadius.circular(16),
                             child: Ink(
                               decoration: BoxDecoration(

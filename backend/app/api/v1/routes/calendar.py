@@ -5,6 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db_session
@@ -68,21 +69,20 @@ async def upsert_entry(
     if payload.outfit_id is not None:
         outfit = await _owned_outfit(payload.outfit_id, current_user.id, session)
         outfit_name = outfit.name
-    entry = await session.scalar(
-        select(CalendarEntry).where(
-            CalendarEntry.user_id == current_user.id,
-            CalendarEntry.entry_date == payload.entry_date,
-            CalendarEntry.slot == payload.slot,
+    statement = (
+        insert(CalendarEntry)
+        .values(user_id=current_user.id, **payload.model_dump())
+        .on_conflict_do_update(
+            constraint="uq_calendar_entries_user_date_slot",
+            set_={"outfit_id": payload.outfit_id, "notes": payload.notes},
         )
+        .returning(CalendarEntry.id)
     )
-    if entry is None:
-        entry = CalendarEntry(user_id=current_user.id, **payload.model_dump())
-        session.add(entry)
-    else:
-        entry.outfit_id = payload.outfit_id
-        entry.notes = payload.notes
+    entry_id = await session.scalar(statement)
     await session.commit()
-    await session.refresh(entry)
+    entry = await session.get(CalendarEntry, entry_id)
+    if entry is None:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Could not save calendar entry")
     return _response(entry, outfit_name)
 
 

@@ -51,4 +51,20 @@ class ClothingItemDraft {
   final double aiConfidence;
   final bool userVerified;
   final DateTime? createdAt;
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'cloudinary_url': cloudinaryUrl,
+    'category': category,
+    'custom_category': customCategory,
+    'color': color,
+    'pattern': pattern,
+    'fabric': fabric,
+    'is_uniform': isUniform,
+    'item_name': itemName,
+    'tags': tags,
+    'ai_confidence': aiConfidence,
+    'user_verified': userVerified,
+    'created_at': createdAt?.toIso8601String(),
+  };
 }

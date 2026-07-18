@@ -50,7 +50,22 @@ final class AuthRepository {
     return DripUser.fromJson(response.data!);
   }
 
-  Future<void> logout() => _tokenStorage.clear();
+  Future<void> logout({String? accessToken}) async {
+    try {
+      if (accessToken != null && accessToken.isNotEmpty) {
+        await _client.dio.post<void>(
+          '/api/v1/auth/logout',
+          options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
+        );
+      }
+    } on DioException {
+      // Local sign-out must still work if the device is offline or another
+      // device has already invalidated this session.
+    } finally {
+      await _tokenStorage.clear();
+    }
+  }
+
   Future<String?> savedAccessToken() => _tokenStorage.readAccessToken();
 
   Future<AuthSession> _persistSession(Map<String, dynamic> data) async {

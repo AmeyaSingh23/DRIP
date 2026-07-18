@@ -20,6 +20,7 @@ class _OutfitsScreenState extends State<OutfitsScreen> {
   List<SavedOutfit> _outfits = const [];
   String? _error;
   bool _loading = true;
+  int _loadEpoch = 0;
 
   @override
   void initState() {
@@ -28,15 +29,18 @@ class _OutfitsScreenState extends State<OutfitsScreen> {
   }
 
   Future<void> _load() async {
+    final requestEpoch = ++_loadEpoch;
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
       final outfits = await _repository.list(token: widget.token);
-      if (mounted) setState(() => _outfits = outfits);
+      if (mounted && requestEpoch == _loadEpoch) {
+        setState(() => _outfits = outfits);
+      }
     } on DioException catch (error) {
-      if (mounted) {
+      if (mounted && requestEpoch == _loadEpoch) {
         final data = error.response?.data;
         setState(
           () =>
@@ -47,7 +51,9 @@ class _OutfitsScreenState extends State<OutfitsScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && requestEpoch == _loadEpoch) {
+        setState(() => _loading = false);
+      }
     }
   }
 
@@ -59,7 +65,7 @@ class _OutfitsScreenState extends State<OutfitsScreen> {
         IconButton(
           onPressed: () async {
             await context.push('/outfits/generate', extra: widget.token);
-            _load();
+            if (mounted) await _load();
           },
           tooltip: 'Create an outfit',
           icon: const Icon(Icons.auto_awesome_outlined),

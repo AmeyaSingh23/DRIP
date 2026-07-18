@@ -41,10 +41,11 @@ async def get_current_user(
             issuer=settings.jwt_issuer,
         )
         user_id = UUID(str(payload["sub"]))
+        session_version = int(payload["sv"])
     except (jwt.InvalidTokenError, KeyError, ValueError):
         raise unauthorized
 
     user = await session.scalar(select(User).where(User.id == user_id))
-    if user is None:
+    if user is None or user.session_version != session_version:
         raise unauthorized
     return user

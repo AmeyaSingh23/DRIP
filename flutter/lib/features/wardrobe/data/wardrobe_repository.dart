@@ -16,6 +16,7 @@ final class WardrobeRepository {
     required File cutout,
     required File taggingImage,
     required String token,
+    required String idempotencyKey,
   }) async {
     final form = FormData.fromMap({
       'cutout': await MultipartFile.fromFile(
@@ -33,7 +34,10 @@ final class WardrobeRepository {
       '/api/v1/items/upload',
       data: form,
       options: Options(
-        headers: {'Authorization': 'Bearer $token'},
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Idempotency-Key': idempotencyKey,
+        },
         sendTimeout: const Duration(seconds: 30),
         receiveTimeout: const Duration(seconds: 90),
       ),
@@ -47,6 +51,7 @@ final class WardrobeRepository {
     required String itemName,
     required String category,
     required String color,
+    required String idempotencyKey,
     String? customCategory,
   }) async {
     final form = FormData.fromMap({
@@ -64,7 +69,10 @@ final class WardrobeRepository {
       '/api/v1/items/manual',
       data: form,
       options: Options(
-        headers: {'Authorization': 'Bearer $token'},
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Idempotency-Key': idempotencyKey,
+        },
         sendTimeout: const Duration(seconds: 30),
         receiveTimeout: const Duration(seconds: 60),
       ),

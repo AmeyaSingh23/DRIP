@@ -1,22 +1,52 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../calendar/presentation/calendar_screen.dart';
 import '../../outfits/presentation/outfits_screen.dart';
 import '../../wardrobe/presentation/wardrobe_screen.dart';
 import 'profile_screen.dart';
+import 'auth_controller.dart';
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({required this.email, required this.token, super.key});
 
   final String email;
   final String token;
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen>
+    with WidgetsBindingObserver {
   var _index = 0;
   final _tabHistory = <int>[];
+  Timer? _sessionTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _sessionTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => ref.read(authControllerProvider.notifier).validateSession(),
+    );
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _sessionTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ref.read(authControllerProvider.notifier).validateSession();
+    }
+  }
 
   void _selectTab(int value) {
     if (value == _index) return;

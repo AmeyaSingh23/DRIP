@@ -16,9 +16,12 @@ _COLORS = {"Black", "White", "Beige", "Navy", "Red", "Green", "Blue", "Pink", "B
 _PATTERNS = {"Solid", "Striped", "Floral", "Checkered", "Animal Print", "Graphic", "Abstract", "Other"}
 _FABRICS = {"Denim", "Knit", "Cotton", "Silk", "Linen", "Leather", "Synthetic", "Wool", "Corduroy", "Other"}
 
-_PROMPT = """Classify the single primary garment in this photo for a personal wardrobe.
+_PROMPT = """First decide whether this photo contains one recognizable clothing item suitable for a personal wardrobe.
 Ignore bedsheets, furniture, hands, legs, shoes, camera equipment, text, and every non-garment object.
 Identify only the most prominent garment. Use Custom only when there is no recognizable garment or it cannot fit a category.
+
+Set is_clothing_item to false for animals, people, faces, food, rooms, screenshots, scenery, or any image without a garment. Do not classify a non-garment as Custom.
+Set is_clothing_item to true only when a garment is visibly present, even if its background is poor.
 
 Use exactly one broad category: Tops, Bottoms, Outerwear, Shoes, Dresses, Accessories, Uniform, or Custom.
 Examples: T-shirt, polo, shirt, blouse, hoodie, and sweater are Tops. Shorts, boxer shorts, briefs, trousers, jeans, and skirts are Bottoms.
@@ -95,7 +98,11 @@ def _repair(raw: dict[str, object]) -> ClothingItemTags:
         confidence = min(1.0, max(0.0, float(raw.get("confidence", 0.0))))
     except (TypeError, ValueError):
         confidence = 0.0
+    is_clothing_item = raw.get("is_clothing_item") is True
+    if not is_clothing_item:
+        return ClothingItemTags(is_clothing_item=False, confidence=confidence)
     return ClothingItemTags(
+        is_clothing_item=True,
         category=category,
         custom_category=str(raw["custom_category"]).strip()[:100] if category == "Custom" and raw.get("custom_category") else None,
         color=_normalize_color(raw.get("color")),

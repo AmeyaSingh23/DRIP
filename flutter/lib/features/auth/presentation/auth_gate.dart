@@ -12,7 +12,7 @@ class AuthGate extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authControllerProvider);
     return authState.when(
-      loading: () => const GoogleSignInScreen(),
+      loading: () => const _AuthRestoreScreen(),
       error: (_, _) => const GoogleSignInScreen(),
       data:
           (session) =>
@@ -24,4 +24,28 @@ class AuthGate extends ConsumerWidget {
                   ),
     );
   }
+}
+
+class _AuthRestoreScreen extends StatelessWidget {
+  const _AuthRestoreScreen();
+
+  @override
+  Widget build(BuildContext context) => const Scaffold(
+    body: SafeArea(
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('DRIP'),
+            SizedBox(height: 16),
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }

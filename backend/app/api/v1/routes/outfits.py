@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,6 +13,7 @@ from app.db.models.outfit import Outfit, OutfitItem
 from app.db.models.user import User
 from app.schemas.outfit import OutfitCreate, OutfitGenerateRequest, OutfitPreview, OutfitResponse
 from app.services.gemini_outfit_generator import GeminiOutfitGenerator
+from app.services.idempotency import acquire_idempotency_lease, complete_idempotency_lease
 
 router = APIRouter()
 
@@ -168,7 +169,22 @@ async def save_outfit(
     payload: OutfitCreate,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ) -> OutfitResponse:
+    lease = await acquire_idempotency_lease(
+        session,
+        user_id=current_user.id,
+        operation="outfit_save",
+        key=idempotency_key,
+    )
+    if lease.completed_resource_id is not None:
+        outfit, items = await _outfit_with_items(
+            lease.completed_resource_id,
+            current_user.id,
+            session,
+        )
+        return _outfit_response(outfit, items)
+
     items = await _active_items(payload.item_ids, current_user.id, session)
     outfit = Outfit(
         user_id=current_user.id,
@@ -188,6 +204,6 @@ async def save_outfit(
             for index, item_id in enumerate(payload.item_ids)
         ]
     )
-    await session.commit()
+    await complete_idempotency_lease(session, lease, outfit.id)
     await session.refresh(outfit)
     return _outfit_response(outfit, items)

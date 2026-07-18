@@ -27,6 +27,8 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
   ClothingItemUsage? _usage;
   String? _error;
   bool _loading = true;
+  bool _mutating = false;
+  int _loadEpoch = 0;
 
   @override
   void initState() {
@@ -35,6 +37,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
   }
 
   Future<void> _load() async {
+    final requestEpoch = ++_loadEpoch;
     setState(() {
       _loading = true;
       _error = null;
@@ -44,16 +47,20 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
         _repository.get(itemId: widget.itemId, token: widget.token),
         _repository.usage(itemId: widget.itemId, token: widget.token),
       ]);
-      if (mounted) {
+      if (mounted && requestEpoch == _loadEpoch) {
         setState(() {
           _item = results[0] as ClothingItemDraft;
           _usage = results[1] as ClothingItemUsage;
         });
       }
     } on DioException catch (error) {
-      if (mounted) setState(() => _error = _messageFor(error));
+      if (mounted && requestEpoch == _loadEpoch) {
+        setState(() => _error = _messageFor(error));
+      }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && requestEpoch == _loadEpoch) {
+        setState(() => _loading = false);
+      }
     }
   }
 
@@ -66,6 +73,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
   }
 
   Future<void> _edit() async {
+    if (_mutating) return;
     final item = _item;
     if (item == null) return;
     final values = await showDialog<ItemEditValues>(
@@ -74,7 +82,8 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
           (context) =>
               WardrobeItemEditorDialog(item: item, title: 'Edit wardrobe item'),
     );
-    if (values == null) return;
+    if (values == null || !mounted) return;
+    setState(() => _mutating = true);
     try {
       await _repository.update(
         draft: item,
@@ -91,10 +100,13 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
           context,
         ).showSnackBar(SnackBar(content: Text(_messageFor(error))));
       }
+    } finally {
+      if (mounted) setState(() => _mutating = false);
     }
   }
 
   Future<void> _delete({required bool permanent}) async {
+    if (_mutating) return;
     final item = _item;
     if (item == null) return;
     final confirmed = await showDialog<bool>(
@@ -126,6 +138,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
           ),
     );
     if (confirmed != true) return;
+    setState(() => _mutating = true);
     try {
       if (permanent) {
         await _repository.permanentlyErase(
@@ -142,6 +155,8 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
           context,
         ).showSnackBar(SnackBar(content: Text(_messageFor(error))));
       }
+    } finally {
+      if (mounted) setState(() => _mutating = false);
     }
   }
 
@@ -176,136 +191,153 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
   Widget build(BuildContext context) {
     final item = _item;
     final usage = _usage;
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(item?.itemName ?? 'Wardrobe item'),
-        actions: [
-          if (item != null)
-            IconButton(
-              tooltip: 'Edit item',
-              onPressed: _edit,
-              icon: const Icon(Icons.edit_outlined),
+    return PopScope(
+      canPop: !_mutating,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _mutating && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Your changes are still being saved.'),
             ),
-          if (item != null)
-            PopupMenuButton<bool>(
-              onSelected: (permanent) => _delete(permanent: permanent),
-              itemBuilder:
-                  (context) => const [
-                    PopupMenuItem(
-                      value: false,
-                      child: Text('Remove from wardrobe'),
-                    ),
-                    PopupMenuItem(
-                      value: true,
-                      child: Text('Permanently erase'),
-                    ),
-                  ],
-            ),
-        ],
-      ),
-      body:
-          _loading
-              ? const Center(child: CircularProgressIndicator())
-              : _error != null
-              ? Center(
-                child: FilledButton.icon(
-                  onPressed: _load,
-                  icon: const Icon(Icons.refresh),
-                  label: Text(_error!),
-                ),
-              )
-              : item == null || usage == null
-              ? const SizedBox.shrink()
-              : RefreshIndicator(
-                onRefresh: _load,
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-                  children: [
-                    Container(
-                      height: 330,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFAFAF8),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Image.network(
-                          item.cloudinaryUrl,
-                          fit: BoxFit.contain,
-                          errorBuilder:
-                              (_, _, _) => const Icon(
-                                Icons.image_not_supported_outlined,
-                                size: 48,
-                              ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    Text(
-                      item.itemName ?? 'Unnamed item',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: 12),
-                    _InfoRow('Category', item.customCategory ?? item.category),
-                    if (item.color != null) _InfoRow('Color', item.color!),
-                    if (item.pattern != null)
-                      _InfoRow('Pattern', item.pattern!),
-                    if (item.fabric != null) _InfoRow('Fabric', item.fabric!),
-                    if (item.createdAt != null)
-                      _InfoRow('Added', _formattedDate(item.createdAt!)),
-                    const SizedBox(height: 14),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        Chip(
-                          label: Text(
-                            item.userVerified
-                                ? 'Verified by you'
-                                : 'AI confidence ${(item.aiConfidence * 100).round()}%',
-                          ),
-                        ),
-                        ...item.tags.map((tag) => Chip(label: Text(tag))),
-                      ],
-                    ),
-                    const SizedBox(height: 28),
-                    Text(
-                      'Used in ${usage.outfitCount} saved outfit${usage.outfitCount == 1 ? '' : 's'}',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 8),
-                    if (usage.outfits.isEmpty)
-                      const Text('This item is not in a saved outfit yet.')
-                    else
-                      ...usage.outfits.map(
-                        (outfit) => ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: const Icon(Icons.checkroom_outlined),
-                          title: Text(outfit.name ?? 'Untitled outfit'),
-                        ),
-                      ),
-                    const SizedBox(height: 24),
-                    Text(
-                      'Calendar history',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 8),
-                    if (usage.calendarHistory.isEmpty)
-                      const Text('This item has not been scheduled yet.')
-                    else
-                      ...usage.calendarHistory.map(
-                        (entry) => ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: const Icon(Icons.calendar_today_outlined),
-                          title: Text(_formattedDate(entry.date)),
-                          subtitle: Text(
-                            '${_slotLabel(entry.slot)} · ${entry.outfitName ?? 'Untitled outfit'}',
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+          );
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(item?.itemName ?? 'Wardrobe item'),
+          automaticallyImplyLeading: !_mutating,
+          actions: [
+            if (item != null)
+              IconButton(
+                tooltip: 'Edit item',
+                onPressed: _mutating ? null : _edit,
+                icon: const Icon(Icons.edit_outlined),
               ),
+            if (item != null)
+              PopupMenuButton<bool>(
+                enabled: !_mutating,
+                onSelected: (permanent) => _delete(permanent: permanent),
+                itemBuilder:
+                    (context) => const [
+                      PopupMenuItem(
+                        value: false,
+                        child: Text('Remove from wardrobe'),
+                      ),
+                      PopupMenuItem(
+                        value: true,
+                        child: Text('Permanently erase'),
+                      ),
+                    ],
+              ),
+          ],
+        ),
+        body:
+            _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _error != null
+                ? Center(
+                  child: FilledButton.icon(
+                    onPressed: _load,
+                    icon: const Icon(Icons.refresh),
+                    label: Text(_error!),
+                  ),
+                )
+                : item == null || usage == null
+                ? const SizedBox.shrink()
+                : RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+                    children: [
+                      Container(
+                        height: 330,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFAFAF8),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Image.network(
+                            item.cloudinaryUrl,
+                            fit: BoxFit.contain,
+                            errorBuilder:
+                                (_, _, _) => const Icon(
+                                  Icons.image_not_supported_outlined,
+                                  size: 48,
+                                ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Text(
+                        item.itemName ?? 'Unnamed item',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: 12),
+                      _InfoRow(
+                        'Category',
+                        item.customCategory ?? item.category,
+                      ),
+                      if (item.color != null) _InfoRow('Color', item.color!),
+                      if (item.pattern != null)
+                        _InfoRow('Pattern', item.pattern!),
+                      if (item.fabric != null) _InfoRow('Fabric', item.fabric!),
+                      if (item.createdAt != null)
+                        _InfoRow('Added', _formattedDate(item.createdAt!)),
+                      const SizedBox(height: 14),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          Chip(
+                            label: Text(
+                              item.userVerified
+                                  ? 'Verified by you'
+                                  : 'AI confidence ${(item.aiConfidence * 100).round()}%',
+                            ),
+                          ),
+                          ...item.tags.map((tag) => Chip(label: Text(tag))),
+                        ],
+                      ),
+                      const SizedBox(height: 28),
+                      Text(
+                        'Used in ${usage.outfitCount} saved outfit${usage.outfitCount == 1 ? '' : 's'}',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 8),
+                      if (usage.outfits.isEmpty)
+                        const Text('This item is not in a saved outfit yet.')
+                      else
+                        ...usage.outfits.map(
+                          (outfit) => ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: const Icon(Icons.checkroom_outlined),
+                            title: Text(outfit.name ?? 'Untitled outfit'),
+                          ),
+                        ),
+                      const SizedBox(height: 24),
+                      Text(
+                        'Calendar history',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 8),
+                      if (usage.calendarHistory.isEmpty)
+                        const Text('This item has not been scheduled yet.')
+                      else
+                        ...usage.calendarHistory.map(
+                          (entry) => ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: const Icon(Icons.calendar_today_outlined),
+                            title: Text(_formattedDate(entry.date)),
+                            subtitle: Text(
+                              '${_slotLabel(entry.slot)} · ${entry.outfitName ?? 'Untitled outfit'}',
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+      ),
     );
   }
 }

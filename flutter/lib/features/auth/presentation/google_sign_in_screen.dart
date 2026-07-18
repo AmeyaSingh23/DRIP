@@ -55,18 +55,43 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
                   ),
                   const SizedBox(height: 16),
                 ],
-                FilledButton.icon(
-                  onPressed: isSigningIn ? null : _signIn,
-                  icon:
-                      isSigningIn
-                          ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                          : const Icon(Icons.g_mobiledata),
-                  label: Text(
-                    isSigningIn ? 'Signing in…' : 'Sign in with Google',
+                Center(
+                  child: SizedBox(
+                    width: 240,
+                    height: 40,
+                    child: OutlinedButton(
+                      onPressed: isSigningIn ? null : _signIn,
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: const Color(0xFF757575),
+                        side: const BorderSide(color: Color(0xFFDADCE0)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Image.network(
+                            'https://developers.google.com/identity/images/g-logo.png',
+                            width: 18,
+                            height: 18,
+                            errorBuilder:
+                                (_, _, _) =>
+                                    const SizedBox(width: 18, height: 18),
+                          ),
+                          const SizedBox(width: 12),
+                          const Text(
+                            'Sign in with Google',
+                            style: TextStyle(
+                              fontFamily: 'Roboto',
+                              color: Color(0xFF757575),
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ],

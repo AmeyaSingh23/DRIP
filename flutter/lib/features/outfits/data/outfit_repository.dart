@@ -33,17 +33,25 @@ final class OutfitRepository {
     return OutfitPreview.fromJson(response.data!);
   }
 
-  Future<void> save({required String token, required OutfitPreview preview}) =>
-      _client.dio.post<void>(
-        '/api/v1/outfits',
-        data: {
-          'name': preview.name,
-          'occasion': preview.occasion,
-          'item_ids': preview.itemIds,
-          'is_ai_generated': true,
-        },
-        options: Options(headers: {'Authorization': 'Bearer $token'}),
-      );
+  Future<void> save({
+    required String token,
+    required OutfitPreview preview,
+    required String idempotencyKey,
+  }) => _client.dio.post<void>(
+    '/api/v1/outfits',
+    data: {
+      'name': preview.name,
+      'occasion': preview.occasion,
+      'item_ids': preview.itemIds,
+      'is_ai_generated': true,
+    },
+    options: Options(
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Idempotency-Key': idempotencyKey,
+      },
+    ),
+  );
 
   Future<List<SavedOutfit>> list({required String token}) async {
     final response = await _client.dio.get<List<dynamic>>(

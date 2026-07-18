@@ -16,8 +16,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/', builder: (context, state) => const AuthGate()),
       GoRoute(
         path: '/wardrobe/upload',
-        builder:
-            (context, state) => UploadScreen(token: state.extra! as String),
+        builder: (context, state) {
+          final args = state.extra! as UploadRouteArgs;
+          return UploadScreen(token: args.token, email: args.email);
+        },
       ),
       GoRoute(
         path: '/outfits/generate',

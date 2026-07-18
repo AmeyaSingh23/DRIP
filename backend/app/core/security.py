@@ -4,11 +4,12 @@ import jwt
 
 from app.core.config import get_settings
 
-def create_access_token(subject: str) -> str:
+def create_access_token(subject: str, session_version: int) -> str:
     settings = get_settings()
     now = datetime.now(UTC)
     claims = {
         "sub": subject,
+        "sv": session_version,
         "iss": settings.jwt_issuer,
         "aud": settings.jwt_audience,
         "iat": now,

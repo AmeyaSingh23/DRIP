@@ -5,12 +5,13 @@ from datetime import datetime, timezone
 from io import BytesIO
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, Response, UploadFile, status
 from PIL import Image, UnidentifiedImageError
 from sqlalchemy import String, cast, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db_session
+from app.db.models.cloudinary_deletion_job import CloudinaryDeletionJob
 from app.db.models.calendar_entry import CalendarEntry
 from app.db.models.clothing_item import ClothingItem
 from app.db.models.outfit import Outfit, OutfitItem
@@ -23,7 +24,9 @@ from app.schemas.clothing_item import (
     OutfitUsage,
 )
 from app.services.cloudinary_service import CloudinaryService
+from app.services.cloudinary_reconciler import reconcile_cloudinary_deletions
 from app.services.gemini_tagger import GeminiTagger
+from app.services.idempotency import acquire_idempotency_lease, complete_idempotency_lease
 
 router = APIRouter()
 _IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
@@ -44,6 +47,7 @@ def _validate_image(data: bytes, content_type: str | None, limit: int, label: st
 
 def _response(item: ClothingItem) -> ClothingItemUploadResponse:
     return ClothingItemUploadResponse(
+        is_clothing_item=True,
         id=item.id,
         cloudinary_url=item.cloudinary_url,
         cloudinary_public_id=item.cloudinary_public_id,
@@ -168,6 +172,7 @@ async def upload_item(
     tagging_image: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ) -> ClothingItemUploadResponse:
     cutout_bytes, tagging_bytes = await asyncio.gather(cutout.read(), tagging_image.read())
     cutout_type = _validate_image(cutout_bytes, cutout.content_type, 20 * 1024 * 1024, "Cutout")
@@ -175,15 +180,37 @@ async def upload_item(
     if cutout_type != "image/png":
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Cutout must be a transparent PNG")
 
+    # Tag first. This avoids uploading a rejected image to Cloudinary.
+    tags = await GeminiTagger().tag(tagging_bytes, tagging_type)
+    if not tags.is_clothing_item:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="No clothing item was detected. Photograph one garment on a contrasting background and try again.",
+        )
+
+    lease = await acquire_idempotency_lease(
+        session,
+        user_id=current_user.id,
+        operation="wardrobe_upload",
+        key=idempotency_key,
+    )
+    if lease.completed_resource_id is not None:
+        item = await session.scalar(
+            select(ClothingItem).where(
+                ClothingItem.id == lease.completed_resource_id,
+                ClothingItem.user_id == current_user.id,
+            )
+        )
+        if item is None:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This upload is no longer available. Start a new upload.")
+        return _response(item)
+
     cloudinary = CloudinaryService()
-    try:
-        # Tag first. This avoids uploading orphaned Cloudinary assets whenever
-        # the AI provider is delayed or rate-limited.
-        tags = await GeminiTagger().tag(tagging_bytes, tagging_type)
-        cloudinary_result = await cloudinary.upload_cutout(cutout_bytes, current_user.id)
-    except Exception:
-        raise
-    cloudinary_url, public_id = cloudinary_result
+    cloudinary_url, public_id = await cloudinary.upload_cutout(
+        cutout_bytes,
+        current_user.id,
+        idempotency_key=lease.record.key,
+    )
     item = ClothingItem(
         user_id=current_user.id,
         cloudinary_url=cloudinary_url,
@@ -200,11 +227,11 @@ async def upload_item(
     )
     try:
         session.add(item)
-        await session.commit()
+        await session.flush()
+        await complete_idempotency_lease(session, lease, item.id)
         await session.refresh(item)
     except Exception:
         await session.rollback()
-        await cloudinary.destroy(public_id)
         raise
     return _response(item)
 
@@ -218,11 +245,32 @@ async def upload_item_manually(
     custom_category: str | None = Form(default=None),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ) -> ClothingItemUploadResponse:
     cutout_bytes = await cutout.read()
     if _validate_image(cutout_bytes, cutout.content_type, 20 * 1024 * 1024, "Cutout") != "image/png":
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Cutout must be a transparent PNG")
-    cloudinary_url, public_id = await CloudinaryService().upload_cutout(cutout_bytes, current_user.id)
+    lease = await acquire_idempotency_lease(
+        session,
+        user_id=current_user.id,
+        operation="wardrobe_upload",
+        key=idempotency_key,
+    )
+    if lease.completed_resource_id is not None:
+        item = await session.scalar(
+            select(ClothingItem).where(
+                ClothingItem.id == lease.completed_resource_id,
+                ClothingItem.user_id == current_user.id,
+            )
+        )
+        if item is None:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This upload is no longer available. Start a new upload.")
+        return _response(item)
+    cloudinary_url, public_id = await CloudinaryService().upload_cutout(
+        cutout_bytes,
+        current_user.id,
+        idempotency_key=lease.record.key,
+    )
     item = ClothingItem(
         user_id=current_user.id, cloudinary_url=cloudinary_url, cloudinary_public_id=public_id,
         category=category.strip()[:50] or "Custom", custom_category=custom_category.strip()[:100] if custom_category else None,
@@ -231,9 +279,13 @@ async def upload_item_manually(
         user_verified_at=datetime.now(timezone.utc),
     )
     try:
-        session.add(item); await session.commit(); await session.refresh(item)
+        session.add(item)
+        await session.flush()
+        await complete_idempotency_lease(session, lease, item.id)
+        await session.refresh(item)
     except Exception:
-        await session.rollback(); await CloudinaryService().destroy(public_id); raise
+        await session.rollback()
+        raise
     return _response(item)
 
 
@@ -282,8 +334,13 @@ async def permanently_erase_item(
             status_code=status.HTTP_409_CONFLICT,
             detail="This item is used in a saved outfit. Remove it from the outfit first, or use Remove from wardrobe to preserve history.",
         )
-    cloudinary = CloudinaryService()
-    await cloudinary.destroy(item.cloudinary_public_id)
+    session.add(
+        CloudinaryDeletionJob(
+            user_id=current_user.id,
+            public_id=item.cloudinary_public_id,
+        )
+    )
     await session.delete(item)
     await session.commit()
+    await reconcile_cloudinary_deletions(session, limit=1)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

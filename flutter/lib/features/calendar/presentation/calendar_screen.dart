@@ -18,6 +18,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
   DateTime _date = DateUtils.dateOnly(DateTime.now());
   List<Map<String, dynamic>> _entries = const [];
   bool _loading = true;
+  bool _actionInProgress = false;
+  String? _error;
+  int _loadEpoch = 0;
 
   @override
   void initState() {
@@ -29,17 +32,22 @@ class _CalendarScreenState extends State<CalendarScreen> {
       '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    final requestEpoch = ++_loadEpoch;
+    final requestedDate = _date;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       final response = await _client.dio.get<List<dynamic>>(
         '/api/v1/calendar',
         queryParameters: {
-          'start': _date.toIso8601String().substring(0, 10),
-          'end': _date.toIso8601String().substring(0, 10),
+          'start': requestedDate.toIso8601String().substring(0, 10),
+          'end': requestedDate.toIso8601String().substring(0, 10),
         },
         options: Options(headers: {'Authorization': 'Bearer ${widget.token}'}),
       );
-      if (mounted) {
+      if (mounted && requestEpoch == _loadEpoch && _date == requestedDate) {
         setState(
           () =>
               _entries =
@@ -48,42 +56,55 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       .toList(),
         );
       }
+    } on DioException catch (error) {
+      if (mounted && requestEpoch == _loadEpoch && _date == requestedDate) {
+        setState(
+          () => _error = _messageFor(error, 'Could not load the calendar.'),
+        );
+      }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && requestEpoch == _loadEpoch && _date == requestedDate) {
+        setState(() => _loading = false);
+      }
     }
   }
 
   Future<void> _schedule(String slot) async {
-    List<SavedOutfit> outfits;
+    if (_actionInProgress) return;
+    final entryDate = _date;
+    setState(() => _actionInProgress = true);
     try {
-      outfits = await _outfits.list(token: widget.token);
-    } on DioException {
-      return;
+      final outfits = await _outfits.list(token: widget.token);
+      if (!mounted) return;
+      final result = await showDialog<_ScheduleValues>(
+        context: context,
+        builder:
+            (context) => _ScheduleDialog(
+              title: 'Schedule ${_slotLabel(slot)}',
+              outfits: outfits,
+            ),
+      );
+      if (result == null) return;
+      await _client.dio.put(
+        '/api/v1/calendar',
+        data: {
+          'entry_date': entryDate.toIso8601String().substring(0, 10),
+          'slot': slot,
+          'outfit_id': result.outfit.id,
+          if (result.notes.isNotEmpty) 'notes': result.notes,
+        },
+        options: Options(headers: {'Authorization': 'Bearer ${widget.token}'}),
+      );
+      if (mounted && _date == entryDate) await _load();
+    } on DioException catch (error) {
+      _showFailure(error, 'Could not save this schedule. Please try again.');
+    } finally {
+      if (mounted) setState(() => _actionInProgress = false);
     }
-    if (!mounted) return;
-    final result = await showDialog<_ScheduleValues>(
-      context: context,
-      builder:
-          (context) => _ScheduleDialog(
-            title: 'Schedule ${_slotLabel(slot)}',
-            outfits: outfits,
-          ),
-    );
-    if (result == null) return;
-    await _client.dio.put(
-      '/api/v1/calendar',
-      data: {
-        'entry_date': _date.toIso8601String().substring(0, 10),
-        'slot': slot,
-        'outfit_id': result.outfit.id,
-        if (result.notes.isNotEmpty) 'notes': result.notes,
-      },
-      options: Options(headers: {'Authorization': 'Bearer ${widget.token}'}),
-    );
-    await _load();
   }
 
   Future<void> _clear(Map<String, dynamic> entry) async {
+    if (_actionInProgress) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder:
@@ -103,11 +124,32 @@ class _CalendarScreenState extends State<CalendarScreen> {
           ),
     );
     if (confirmed != true) return;
-    await _client.dio.delete(
-      '/api/v1/calendar/${entry['id']}',
-      options: Options(headers: {'Authorization': 'Bearer ${widget.token}'}),
-    );
-    await _load();
+    setState(() => _actionInProgress = true);
+    try {
+      await _client.dio.delete(
+        '/api/v1/calendar/${entry['id']}',
+        options: Options(headers: {'Authorization': 'Bearer ${widget.token}'}),
+      );
+      await _load();
+    } on DioException catch (error) {
+      _showFailure(error, 'Could not clear this schedule. Please try again.');
+    } finally {
+      if (mounted) setState(() => _actionInProgress = false);
+    }
+  }
+
+  String _messageFor(DioException error, String fallback) {
+    final data = error.response?.data;
+    return data is Map && data['detail'] is String
+        ? data['detail'] as String
+        : fallback;
+  }
+
+  void _showFailure(DioException error, String fallback) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(_messageFor(error, fallback))));
   }
 
   String _slotLabel(String slot) =>
@@ -126,18 +168,21 @@ class _CalendarScreenState extends State<CalendarScreen> {
       child: Column(
         children: [
           OutlinedButton.icon(
-            onPressed: () async {
-              final date = await showDatePicker(
-                context: context,
-                firstDate: DateTime(2020),
-                lastDate: DateTime(2035),
-                initialDate: _date,
-              );
-              if (date != null) {
-                setState(() => _date = date);
-                _load();
-              }
-            },
+            onPressed:
+                _actionInProgress
+                    ? null
+                    : () async {
+                      final date = await showDatePicker(
+                        context: context,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime(2035),
+                        initialDate: _date,
+                      );
+                      if (date != null) {
+                        setState(() => _date = DateUtils.dateOnly(date));
+                        await _load();
+                      }
+                    },
             icon: const Icon(Icons.calendar_month_outlined),
             label: Text(_dateText(_date)),
           ),
@@ -146,6 +191,21 @@ class _CalendarScreenState extends State<CalendarScreen> {
             child:
                 _loading
                     ? const Center(child: CircularProgressIndicator())
+                    : _error != null
+                    ? ListView(
+                      children: [
+                        const SizedBox(height: 120),
+                        Center(child: Text(_error!)),
+                        const SizedBox(height: 12),
+                        Center(
+                          child: FilledButton.icon(
+                            onPressed: _load,
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Try again'),
+                          ),
+                        ),
+                      ],
+                    )
                     : ListView(
                       children:
                           [
@@ -175,10 +235,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                         : Icons.remove_circle_outline,
                                   ),
                                   onPressed:
-                                      () =>
-                                          entry == null
-                                              ? _schedule(slot)
-                                              : _clear(entry),
+                                      _actionInProgress
+                                          ? null
+                                          : () =>
+                                              entry == null
+                                                  ? _schedule(slot)
+                                                  : _clear(entry),
                                 ),
                               ),
                             );

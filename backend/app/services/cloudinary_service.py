@@ -22,15 +22,23 @@ class CloudinaryService:
             secure=True,
         )
 
-    async def upload_cutout(self, image_bytes: bytes, user_id: UUID) -> tuple[str, str]:
+    async def upload_cutout(
+        self,
+        image_bytes: bytes,
+        user_id: UUID,
+        *,
+        idempotency_key: str,
+    ) -> tuple[str, str]:
         result = await asyncio.to_thread(
             cloudinary.uploader.upload,
             image_bytes,
             folder=f"drip/{user_id}",
+            public_id=f"item_{idempotency_key}",
             resource_type="image",
             format="png",
-            overwrite=False,
-            unique_filename=True,
+            overwrite=True,
+            unique_filename=False,
+            invalidate=True,
         )
         return str(result["secure_url"]), str(result["public_id"])
 

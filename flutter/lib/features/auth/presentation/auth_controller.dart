@@ -49,8 +49,28 @@ final class AuthController extends AsyncNotifier<AuthSession?> {
   }
 
   Future<void> logout() async {
-    await _repository.logout();
+    final token = switch (state) {
+      AsyncData(:final value) => value?.accessToken,
+      _ => null,
+    };
+    state = const AsyncLoading();
+    await _repository.logout(accessToken: token);
     state = const AsyncData(null);
+  }
+
+  Future<void> validateSession() async {
+    final session = switch (state) {
+      AsyncData(:final value) => value,
+      _ => null,
+    };
+    if (session == null) return;
+    try {
+      await _repository.me(session.accessToken);
+    } on DioException catch (error) {
+      if (error.response?.statusCode != 401) return;
+      await _repository.logout();
+      state = const AsyncData(null);
+    }
   }
 
   String _messageFor(Object error) {

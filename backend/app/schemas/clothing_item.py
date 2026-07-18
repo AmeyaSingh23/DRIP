@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class ClothingItemTags(BaseModel):
+    is_clothing_item: bool = False
     category: str = "Custom"
     custom_category: str | None = None
     color: str | None = None
