@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_client.dart';
-import '../../auth/presentation/auth_controller.dart';
 import '../data/wardrobe_repository.dart';
 import '../domain/clothing_item_draft.dart';
 
@@ -215,19 +214,6 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
         title: const Text('Wardrobe'),
         actions: [
           IconButton(
-            onPressed: () => context.push('/outfits', extra: widget.token),
-            tooltip: 'Saved outfits',
-            icon: const Icon(Icons.collections_bookmark_outlined),
-          ),
-          IconButton(
-            onPressed: () {
-              _searchFocusNode.unfocus();
-              context.push('/outfits/generate', extra: widget.token);
-            },
-            tooltip: 'Create an outfit',
-            icon: const Icon(Icons.auto_awesome_outlined),
-          ),
-          IconButton(
             onPressed: () async {
               _searchFocusNode.unfocus();
               await context.push('/wardrobe/upload', extra: widget.token);
@@ -235,11 +221,6 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
             },
             tooltip: 'Add wardrobe item',
             icon: const Icon(Icons.add_photo_alternate_outlined),
-          ),
-          IconButton(
-            onPressed: () => ref.read(authControllerProvider.notifier).logout(),
-            tooltip: 'Sign out',
-            icon: const Icon(Icons.logout),
           ),
         ],
       ),
