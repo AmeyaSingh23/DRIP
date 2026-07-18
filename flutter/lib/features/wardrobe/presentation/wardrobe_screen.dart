@@ -28,11 +28,11 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
     'Dresses',
     'Accessories',
     'Uniform',
-    'Custom',
   ];
 
   final _repository = WardrobeRepository(ApiClient());
   final _searchController = TextEditingController();
+  final _searchFocusNode = FocusNode();
   List<ClothingItemDraft> _items = const [];
   String _selectedCategory = 'All';
   bool _loading = true;
@@ -47,6 +47,7 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -75,17 +76,15 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
   }
 
   List<String> get _categories {
-    final custom =
-        _items
-            .where(
-              (item) =>
-                  item.category == 'Custom' && item.customCategory != null,
-            )
-            .map((item) => item.customCategory!)
-            .toSet()
-            .toList()
-          ..sort();
-    return [..._baseCategories, ...custom];
+    final custom = <String>{};
+    for (final item in _items) {
+      final value = item.customCategory?.trim();
+      if (item.category == 'Custom' && value != null && value.isNotEmpty) {
+        custom.add(value);
+      }
+    }
+    final sortedCustom = custom.toList()..sort();
+    return [..._baseCategories, ...sortedCustom];
   }
 
   List<ClothingItemDraft> get _filteredItems {
@@ -118,133 +117,6 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
       return data['detail'] as String;
     }
     return 'Could not update your wardrobe. Please try again.';
-  }
-
-  Future<void> _edit(ClothingItemDraft item) async {
-    final name = TextEditingController(text: item.itemName ?? '');
-    final color = TextEditingController(text: item.color ?? '');
-    final customCategory = TextEditingController(
-      text: item.category == 'Custom' ? item.customCategory ?? '' : '',
-    );
-    final categories = _baseCategories.sublist(1);
-    var category =
-        categories.contains(item.category) ? item.category : 'Custom';
-    var showCustomCategoryError = false;
-    final values = await showDialog<List<String>>(
-      context: context,
-      builder:
-          (context) => StatefulBuilder(
-            builder:
-                (context, setDialogState) => AlertDialog(
-                  title: const Text('Edit wardrobe item'),
-                  content: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        TextField(
-                          key: const ValueKey('item-name'),
-                          controller: name,
-                          decoration: const InputDecoration(labelText: 'Name'),
-                        ),
-                        const SizedBox(height: 12),
-                        DropdownButtonFormField<String>(
-                          initialValue: category,
-                          decoration: const InputDecoration(
-                            labelText: 'Category',
-                          ),
-                          items:
-                              categories
-                                  .map(
-                                    (value) => DropdownMenuItem(
-                                      value: value,
-                                      child: Text(value),
-                                    ),
-                                  )
-                                  .toList(),
-                          onChanged: (value) {
-                            if (value != null) {
-                              setDialogState(() {
-                                category = value;
-                                showCustomCategoryError = false;
-                              });
-                            }
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        Visibility(
-                          visible: category == 'Custom',
-                          child: TextField(
-                            key: const ValueKey('custom-category'),
-                            controller: customCategory,
-                            textCapitalization: TextCapitalization.words,
-                            maxLength: 100,
-                            decoration: InputDecoration(
-                              labelText: 'Custom category',
-                              hintText: 'For example: Activewear',
-                              errorText:
-                                  showCustomCategoryError
-                                      ? 'Enter a custom category name.'
-                                      : null,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        TextField(
-                          key: const ValueKey('item-color'),
-                          controller: color,
-                          decoration: const InputDecoration(labelText: 'Color'),
-                        ),
-                      ],
-                    ),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Cancel'),
-                    ),
-                    FilledButton(
-                      onPressed: () {
-                        if (category == 'Custom' &&
-                            customCategory.text.trim().isEmpty) {
-                          setDialogState(() => showCustomCategoryError = true);
-                          return;
-                        }
-                        Navigator.pop(context, [
-                          name.text.trim(),
-                          category,
-                          category == 'Custom'
-                              ? customCategory.text.trim()
-                              : '',
-                          color.text.trim(),
-                        ]);
-                      },
-                      child: const Text('Save'),
-                    ),
-                  ],
-                ),
-          ),
-    );
-    name.dispose();
-    color.dispose();
-    customCategory.dispose();
-    if (values == null) return;
-    try {
-      await _repository.update(
-        draft: item,
-        token: widget.token,
-        itemName: values[0],
-        category: values[1],
-        customCategory: values[2].isEmpty ? null : values[2],
-        color: values[3],
-      );
-      await _load();
-    } on DioException catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(_messageFor(error))));
-      }
-    }
   }
 
   Future<void> _delete(
@@ -307,14 +179,6 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
             child: Wrap(
               children: [
                 ListTile(
-                  leading: const Icon(Icons.edit_outlined),
-                  title: const Text('Edit item'),
-                  onTap: () {
-                    Navigator.pop(sheetContext);
-                    _edit(item);
-                  },
-                ),
-                ListTile(
                   leading: const Icon(Icons.remove_circle_outline),
                   title: const Text('Remove from wardrobe'),
                   subtitle: const Text('Preserves saved outfit history'),
@@ -352,6 +216,7 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
         actions: [
           IconButton(
             onPressed: () async {
+              _searchFocusNode.unfocus();
               await context.push('/wardrobe/upload', extra: widget.token);
               _load();
             },
@@ -373,7 +238,9 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
               child: TextField(
                 controller: _searchController,
+                focusNode: _searchFocusNode,
                 onChanged: (_) => setState(() {}),
+                onTapOutside: (_) => _searchFocusNode.unfocus(),
                 decoration: const InputDecoration(
                   prefixIcon: Icon(Icons.search),
                   labelText: 'Search wardrobe',
@@ -392,8 +259,10 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
                   return ChoiceChip(
                     label: Text(category),
                     selected: _selectedCategory == category,
-                    onSelected:
-                        (_) => setState(() => _selectedCategory = category),
+                    onSelected: (_) {
+                      _searchFocusNode.unfocus();
+                      setState(() => _selectedCategory = category);
+                    },
                   );
                 },
               ),
@@ -429,8 +298,18 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
                         itemBuilder: (context, index) {
                           final item = items[index];
                           return InkWell(
-                            onTap: () => _edit(item),
-                            onLongPress: () => _showActions(item),
+                            onTap: () async {
+                              _searchFocusNode.unfocus();
+                              final changed = await context.push<bool>(
+                                '/wardrobe/items/${item.id}',
+                                extra: widget.token,
+                              );
+                              if (changed == true) await _load();
+                            },
+                            onLongPress: () {
+                              _searchFocusNode.unfocus();
+                              _showActions(item);
+                            },
                             borderRadius: BorderRadius.circular(16),
                             child: Ink(
                               decoration: BoxDecoration(

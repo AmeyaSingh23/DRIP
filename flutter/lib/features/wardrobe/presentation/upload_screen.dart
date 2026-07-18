@@ -12,6 +12,7 @@ import '../../../core/network/api_client.dart';
 import '../data/wardrobe_repository.dart';
 import '../domain/clothing_item_draft.dart';
 import 'cutout_editor_screen.dart';
+import 'wardrobe_item_editor_dialog.dart';
 
 class UploadScreen extends StatefulWidget {
   const UploadScreen({required this.token, super.key});
@@ -210,134 +211,12 @@ class _UploadScreenState extends State<UploadScreen> {
   Future<void> _saveEdits() async {
     final draft = _draft;
     if (draft == null) return;
-    final name = TextEditingController(text: draft.itemName ?? '');
-    final color = TextEditingController(text: draft.color ?? '');
-    final customCategory = TextEditingController(
-      text: draft.category == 'Custom' ? draft.customCategory ?? '' : '',
-    );
-    const categories = [
-      'Tops',
-      'Bottoms',
-      'Outerwear',
-      'Shoes',
-      'Dresses',
-      'Accessories',
-      'Uniform',
-      'Custom',
-    ];
-    var selectedCategory =
-        categories.contains(draft.category) ? draft.category : 'Custom';
-    var showCustomCategoryError = false;
-    final result = await showDialog<List<String>>(
+    final result = await showDialog<ItemEditValues>(
       context: context,
       builder:
-          (context) => StatefulBuilder(
-            builder:
-                (context, setDialogState) => AlertDialog(
-                  title: const Text('Review item tags'),
-                  content: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        TextField(
-                          key: const ValueKey('item-name'),
-                          controller: name,
-                          textInputAction: TextInputAction.next,
-                          decoration: const InputDecoration(
-                            labelText: 'Name',
-                            filled: true,
-                            fillColor: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        DropdownButtonFormField<String>(
-                          initialValue: selectedCategory,
-                          decoration: const InputDecoration(
-                            filled: true,
-                            fillColor: Colors.white,
-                            labelText: 'Category',
-                          ),
-                          items:
-                              categories
-                                  .map(
-                                    (category) => DropdownMenuItem(
-                                      value: category,
-                                      child: Text(category),
-                                    ),
-                                  )
-                                  .toList(),
-                          onChanged: (value) {
-                            if (value != null) {
-                              setDialogState(() {
-                                selectedCategory = value;
-                                showCustomCategoryError = false;
-                              });
-                            }
-                          },
-                        ),
-                        const SizedBox(height: 14),
-                        Visibility(
-                          visible: selectedCategory == 'Custom',
-                          child: TextField(
-                            key: const ValueKey('custom-category'),
-                            controller: customCategory,
-                            textCapitalization: TextCapitalization.words,
-                            maxLength: 100,
-                            decoration: InputDecoration(
-                              labelText: 'Custom category',
-                              hintText: 'For example: Activewear',
-                              filled: true,
-                              fillColor: Colors.white,
-                              errorText:
-                                  showCustomCategoryError
-                                      ? 'Enter a custom category name.'
-                                      : null,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        TextField(
-                          key: const ValueKey('item-color'),
-                          controller: color,
-                          decoration: const InputDecoration(
-                            labelText: 'Color',
-                            filled: true,
-                            fillColor: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Cancel'),
-                    ),
-                    FilledButton(
-                      onPressed: () {
-                        if (selectedCategory == 'Custom' &&
-                            customCategory.text.trim().isEmpty) {
-                          setDialogState(() => showCustomCategoryError = true);
-                          return;
-                        }
-                        Navigator.pop(context, [
-                          name.text.trim(),
-                          selectedCategory,
-                          selectedCategory == 'Custom'
-                              ? customCategory.text.trim()
-                              : '',
-                          color.text.trim(),
-                        ]);
-                      },
-                      child: const Text('Save'),
-                    ),
-                  ],
-                ),
-          ),
+          (context) =>
+              WardrobeItemEditorDialog(item: draft, title: 'Review item tags'),
     );
-    name.dispose();
-    color.dispose();
-    customCategory.dispose();
     if (result == null || !mounted) return;
     setState(() {
       _error = null;
@@ -347,10 +226,10 @@ class _UploadScreenState extends State<UploadScreen> {
       final updated = await _repository.update(
         draft: draft,
         token: widget.token,
-        itemName: result[0],
-        category: result[1],
-        customCategory: result[2].isEmpty ? null : result[2],
-        color: result[3],
+        itemName: result.itemName,
+        category: result.category,
+        customCategory: result.customCategory,
+        color: result.color,
       );
       setState(() {
         _draft = updated;

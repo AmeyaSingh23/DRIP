@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -36,3 +36,21 @@ class ClothingItemUploadResponse(ClothingItemTags):
     ai_confidence: float = Field(ge=0.0, le=1.0)
     user_verified: bool
     created_at: datetime
+
+
+class OutfitUsage(BaseModel):
+    outfit_id: UUID
+    outfit_name: str | None = None
+
+
+class CalendarUsage(BaseModel):
+    entry_date: date
+    slot: str
+    outfit_id: UUID
+    outfit_name: str | None = None
+
+
+class ClothingItemUsageResponse(BaseModel):
+    outfit_count: int = Field(ge=0)
+    outfits: list[OutfitUsage] = Field(default_factory=list)
+    calendar_history: list[CalendarUsage] = Field(default_factory=list)

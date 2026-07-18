@@ -5,6 +5,7 @@ import 'package:http_parser/http_parser.dart';
 
 import '../../../core/network/api_client.dart';
 import '../domain/clothing_item_draft.dart';
+import '../domain/clothing_item_usage.dart';
 
 final class WardrobeRepository {
   WardrobeRepository(this._client);
@@ -78,6 +79,28 @@ final class WardrobeRepository {
         .whereType<Map<String, dynamic>>()
         .map(ClothingItemDraft.fromJson)
         .toList();
+  }
+
+  Future<ClothingItemDraft> get({
+    required String itemId,
+    required String token,
+  }) async {
+    final response = await _client.dio.get<Map<String, dynamic>>(
+      '/api/v1/items/$itemId',
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+    return ClothingItemDraft.fromJson(response.data!);
+  }
+
+  Future<ClothingItemUsage> usage({
+    required String itemId,
+    required String token,
+  }) async {
+    final response = await _client.dio.get<Map<String, dynamic>>(
+      '/api/v1/items/$itemId/usage',
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+    return ClothingItemUsage.fromJson(response.data!);
   }
 
   Future<void> softDelete({required String itemId, required String token}) =>

@@ -12,6 +12,7 @@ class ClothingItemDraft {
     this.tags = const [],
     this.aiConfidence = 0,
     this.userVerified = false,
+    this.createdAt,
   });
 
   factory ClothingItemDraft.fromJson(Map<String, dynamic> json) =>
@@ -31,6 +32,10 @@ class ClothingItemDraft {
             (json['confidence'] as num?)?.toDouble() ??
             0,
         userVerified: json['user_verified'] as bool? ?? false,
+        createdAt:
+            json['created_at'] is String
+                ? DateTime.tryParse(json['created_at'] as String)
+                : null,
       );
 
   final String id;
@@ -45,4 +50,5 @@ class ClothingItemDraft {
   final List<String> tags;
   final double aiConfidence;
   final bool userVerified;
+  final DateTime? createdAt;
 }

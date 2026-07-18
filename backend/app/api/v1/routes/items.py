@@ -11,10 +11,17 @@ from sqlalchemy import String, cast, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db_session
+from app.db.models.calendar_entry import CalendarEntry
 from app.db.models.clothing_item import ClothingItem
-from app.db.models.outfit import OutfitItem
+from app.db.models.outfit import Outfit, OutfitItem
 from app.db.models.user import User
-from app.schemas.clothing_item import ClothingItemUpdate, ClothingItemUploadResponse
+from app.schemas.clothing_item import (
+    CalendarUsage,
+    ClothingItemUpdate,
+    ClothingItemUploadResponse,
+    ClothingItemUsageResponse,
+    OutfitUsage,
+)
 from app.services.cloudinary_service import CloudinaryService
 from app.services.gemini_tagger import GeminiTagger
 
@@ -105,6 +112,54 @@ async def get_item(
     session: AsyncSession = Depends(get_db_session),
 ) -> ClothingItemUploadResponse:
     return _response(await _active_item_or_404(item_id, current_user.id, session))
+
+
+@router.get("/{item_id}/usage", response_model=ClothingItemUsageResponse)
+async def get_item_usage(
+    item_id: UUID,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+) -> ClothingItemUsageResponse:
+    item = await _active_item_or_404(item_id, current_user.id, session)
+    outfit_rows = (
+        await session.execute(
+            select(Outfit.id, Outfit.name)
+            .join(OutfitItem, OutfitItem.outfit_id == Outfit.id)
+            .where(
+                OutfitItem.clothing_item_id == item.id,
+                Outfit.user_id == current_user.id,
+            )
+            .order_by(Outfit.created_at.desc())
+        )
+    ).all()
+    outfit_ids = [outfit_id for outfit_id, _ in outfit_rows]
+    calendar_rows = []
+    if outfit_ids:
+        calendar_rows = (
+            await session.execute(
+                select(CalendarEntry.entry_date, CalendarEntry.slot, Outfit.id, Outfit.name)
+                .join(Outfit, CalendarEntry.outfit_id == Outfit.id)
+                .where(
+                    CalendarEntry.user_id == current_user.id,
+                    CalendarEntry.outfit_id.in_(outfit_ids),
+                )
+                .order_by(CalendarEntry.entry_date.desc())
+                .limit(20)
+            )
+        ).all()
+    return ClothingItemUsageResponse(
+        outfit_count=len(outfit_rows),
+        outfits=[OutfitUsage(outfit_id=outfit_id, outfit_name=name) for outfit_id, name in outfit_rows],
+        calendar_history=[
+            CalendarUsage(
+                entry_date=entry_date,
+                slot=slot,
+                outfit_id=outfit_id,
+                outfit_name=outfit_name,
+            )
+            for entry_date, slot, outfit_id, outfit_name in calendar_rows
+        ],
+    )
 
 
 @router.post("/upload", response_model=ClothingItemUploadResponse, status_code=status.HTTP_201_CREATED)
