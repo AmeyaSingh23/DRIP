@@ -1,0 +1,94 @@
+from __future__ import annotations
+
+import asyncio
+
+import cloudinary
+import cloudinary.uploader
+import httpx
+from fastapi import HTTPException, status
+
+from app.core.config import get_settings
+
+_RAPIDAPI_URL = "https://background-removal-ai.p.rapidapi.com/remove-background"
+_RAPIDAPI_HOST = "background-removal-ai.p.rapidapi.com"
+
+
+class BgRemovalService:
+    def __init__(self) -> None:
+        settings = get_settings()
+        if not settings.rapidapi_key:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Background removal is not configured on the server",
+            )
+        if not all((settings.cloudinary_cloud_name, settings.cloudinary_api_key, settings.cloudinary_api_secret)):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Cloudinary is not configured on the server",
+            )
+        self._rapidapi_key = settings.rapidapi_key
+        cloudinary.config(
+            cloud_name=settings.cloudinary_cloud_name,
+            api_key=settings.cloudinary_api_key,
+            api_secret=settings.cloudinary_api_secret,
+            secure=True,
+        )
+
+    async def remove_background(self, image_data: bytes, content_type: str) -> bytes:
+        del content_type  # Cloudinary detects the image type from the bytes.
+        public_id: str | None = None
+        try:
+            upload_result = await asyncio.to_thread(
+                cloudinary.uploader.upload,
+                image_data,
+                folder="wardrobe_temp",
+                resource_type="image",
+            )
+            public_id = str(upload_result["public_id"])
+            source_url = upload_result.get("secure_url")
+            if not isinstance(source_url, str) or not source_url:
+                raise ValueError("Cloudinary did not return a source URL")
+
+            timeout = httpx.Timeout(45.0, connect=10.0)
+            headers = {
+                "x-rapidapi-key": self._rapidapi_key,
+                "x-rapidapi-host": _RAPIDAPI_HOST,
+            }
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                removal_response = await client.post(
+                    _RAPIDAPI_URL,
+                    json={"image_url": source_url},
+                    headers=headers,
+                )
+                removal_response.raise_for_status()
+                payload = removal_response.json()
+                png_url = payload.get("image_url") if isinstance(payload, dict) else None
+                if not isinstance(png_url, str) or not png_url:
+                    raise ValueError("RapidAPI did not return a cutout URL")
+
+                png_response = await client.get(png_url)
+                png_response.raise_for_status()
+                if not png_response.content:
+                    raise ValueError("RapidAPI returned an empty cutout")
+                return png_response.content
+        except HTTPException:
+            raise
+        except (httpx.HTTPError, ValueError, KeyError, TypeError) as error:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Background removal failed. Please try again.",
+            ) from error
+        finally:
+            if public_id is not None:
+                try:
+                    await asyncio.to_thread(
+                        cloudinary.uploader.destroy,
+                        public_id,
+                        resource_type="image",
+                        invalidate=True,
+                    )
+                except Exception:
+                    # A reconciler cannot identify transient uploads, so never mask
+                    # the original failure. Cloudinary's folder lifecycle is the
+                    # final safety net if this best-effort cleanup is unavailable.
+                    pass

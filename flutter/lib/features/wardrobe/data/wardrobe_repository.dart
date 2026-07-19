@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:http_parser/http_parser.dart';
@@ -12,6 +13,34 @@ final class WardrobeRepository {
   WardrobeRepository(this._client);
 
   final ApiClient _client;
+
+  Future<Uint8List> removeBackground({
+    required File image,
+    required String token,
+  }) async {
+    final form = FormData.fromMap({
+      'image': await MultipartFile.fromFile(
+        image.path,
+        filename: 'garment.jpg',
+        contentType: MediaType('image', 'jpeg'),
+      ),
+    });
+    final response = await _client.dio.post<List<int>>(
+      '/api/v1/items/cutout',
+      data: form,
+      options: Options(
+        headers: {'Authorization': 'Bearer $token'},
+        responseType: ResponseType.bytes,
+        sendTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 90),
+      ),
+    );
+    final bytes = response.data;
+    if (bytes == null || bytes.isEmpty) {
+      throw StateError('Background removal returned an empty image.');
+    }
+    return Uint8List.fromList(bytes);
+  }
 
   Future<ClothingTagResult> tag({
     required File taggingImage,

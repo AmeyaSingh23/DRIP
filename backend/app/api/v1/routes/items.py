@@ -24,6 +24,7 @@ from app.schemas.clothing_item import (
     ClothingItemUsageResponse,
     OutfitUsage,
 )
+from app.services.bg_removal_service import BgRemovalService
 from app.services.cloudinary_service import CloudinaryService
 from app.services.cloudinary_reconciler import reconcile_cloudinary_deletions
 from app.services.gemini_tagger import GeminiTagger
@@ -181,6 +182,18 @@ async def tag_item(
             detail="No clothing item was detected. Photograph one garment on a contrasting background and try again.",
         )
     return tags
+
+
+@router.post("/cutout", response_class=Response)
+async def remove_item_background(
+    image: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+) -> Response:
+    image_bytes = await image.read()
+    content_type = _validate_image(image_bytes, image.content_type, 10 * 1024 * 1024, "Image")
+    cutout_bytes = await BgRemovalService().remove_background(image_bytes, content_type)
+    _validate_image(cutout_bytes, "image/png", 20 * 1024 * 1024, "Background-removed image")
+    return Response(content=cutout_bytes, media_type="image/png")
 
 
 @router.post("/manual", response_model=ClothingItemUploadResponse, status_code=status.HTTP_201_CREATED)

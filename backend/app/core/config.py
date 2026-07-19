@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     google_oauth_web_client_id: str | None = Field(default=None, validation_alias="GOOGLE_OAUTH_WEB_CLIENT_ID")
     gemini_api_key: str | None = None
     gemini_model: str = "gemini-3.5-flash"
+    rapidapi_key: str | None = Field(default=None, validation_alias="RAPIDAPI_KEY")
     cloudinary_cloud_name: str | None = None
     cloudinary_api_key: str | None = None
     cloudinary_api_secret: str | None = None

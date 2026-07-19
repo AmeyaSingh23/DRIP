@@ -5,7 +5,6 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
-import 'package:native_cutout/native_cutout.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
@@ -70,6 +69,7 @@ class _UploadScreenState extends State<UploadScreen> {
       return;
     }
     File? cutoutSource;
+    File? rawCutout;
     File? taggingImage;
     setState(() {
       _busy = true;
@@ -109,13 +109,22 @@ class _UploadScreenState extends State<UploadScreen> {
       if (mounted) {
         setState(() => _status = 'Removing background...');
       }
-      await _ensureCutoutModel();
       cutoutSource = await _prepareForCutout(edited);
-      final rawCutout = await _removeBackground(cutoutSource);
+      rawCutout = File(
+        '${(await getTemporaryDirectory()).path}/la_maison_rapidapi_cutout_${DateTime.now().microsecondsSinceEpoch}.png',
+      );
+      await rawCutout.writeAsBytes(
+        await _repository.removeBackground(
+          image: cutoutSource,
+          token: widget.token,
+        ),
+        flush: true,
+      );
       await _deleteTemporaryFile(cutoutSource);
       cutoutSource = null;
       final cutout = await _prepareCutoutForUpload(rawCutout);
-      await NativeCutout.clearCache();
+      await _deleteTemporaryFile(rawCutout);
+      rawCutout = null;
       if (mounted) {
         setState(() {
           _cutout = cutout;
@@ -164,6 +173,9 @@ class _UploadScreenState extends State<UploadScreen> {
     } finally {
       if (cutoutSource != null) {
         await _deleteTemporaryFile(cutoutSource);
+      }
+      if (rawCutout != null) {
+        await _deleteTemporaryFile(rawCutout);
       }
       if (taggingImage != null) {
         await _deleteTemporaryFile(taggingImage);
@@ -226,41 +238,6 @@ class _UploadScreenState extends State<UploadScreen> {
         setState(() => _busy = false);
       }
     }
-  }
-
-  Future<void> _ensureCutoutModel() async {
-    if (await NativeCutout.isModelAvailable()) {
-      return;
-    }
-    if (!await NativeCutout.downloadModel()) {
-      throw StateError(
-        'Could not prepare background removal. Check your connection and try again.',
-      );
-    }
-    for (var attempt = 0; attempt < 45; attempt++) {
-      if (await NativeCutout.isModelAvailable()) {
-        return;
-      }
-      await Future<void>.delayed(const Duration(seconds: 1));
-    }
-    throw StateError(
-      'Background removal is still preparing. Please try again in a moment.',
-    );
-  }
-
-  Future<File> _removeBackground(File original) async {
-    final result = await NativeCutout.removeBackground(
-      original.path,
-      options: const CutoutOptions(cropToSubject: true, writeToCache: true),
-    );
-    if (result case CutoutFileSuccess(:final path)) {
-      return File(path);
-    }
-    throw StateError(
-      result is CutoutFailure
-          ? result.message
-          : 'Could not remove the background.',
-    );
   }
 
   img.Image _resizeToMaxSide(img.Image source, int maxSide) =>
