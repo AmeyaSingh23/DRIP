@@ -1,4 +1,4 @@
-# drip
+# La Maison de Miniso
 
 A new Flutter project.
 

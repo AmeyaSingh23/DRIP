@@ -5,7 +5,7 @@ import '../../../core/config/app_config.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/storage/secure_token_storage.dart';
 import '../domain/auth_session.dart';
-import '../domain/drip_user.dart';
+import '../domain/maison_user.dart';
 
 final class AuthRepository {
   AuthRepository(this._client, this._tokenStorage);
@@ -42,12 +42,12 @@ final class AuthRepository {
     return _persistSession(response.data!);
   }
 
-  Future<DripUser> me(String token) async {
+  Future<MaisonUser> me(String token) async {
     final response = await _client.dio.get<Map<String, dynamic>>(
       '/api/v1/auth/me',
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
-    return DripUser.fromJson(response.data!);
+    return MaisonUser.fromJson(response.data!);
   }
 
   Future<void> logout({String? accessToken}) async {

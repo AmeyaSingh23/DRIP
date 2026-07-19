@@ -36,7 +36,7 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'DRIP',
+                  'La Maison de Miniso',
                   style: Theme.of(context).textTheme.displaySmall,
                   textAlign: TextAlign.center,
                 ),

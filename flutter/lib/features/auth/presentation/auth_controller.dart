@@ -84,6 +84,6 @@ final class AuthController extends AsyncNotifier<AuthSession?> {
     if (body is Map<String, dynamic> && body['detail'] is String) {
       return body['detail'] as String;
     }
-    return 'Could not reach DRIP. Check the API URL and your connection.';
+    return 'Could not reach La Maison de Miniso. Check the API URL and your connection.';
   }
 }

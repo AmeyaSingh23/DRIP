@@ -32,7 +32,7 @@ class _CutoutEditorScreenState extends State<CutoutEditorScreen> {
       final rotated = img.copyRotate(source, angle: degrees);
       final directory = await getTemporaryDirectory();
       final output = File(
-        '${directory.path}/drip_photo_rotate_${DateTime.now().microsecondsSinceEpoch}.png',
+        '${directory.path}/la_maison_photo_rotate_${DateTime.now().microsecondsSinceEpoch}.png',
       );
       await output.writeAsBytes(img.encodePng(rotated, level: 6), flush: true);
       if (mounted) setState(() => _current = output);

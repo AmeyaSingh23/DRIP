@@ -1,4 +1,4 @@
-package com.example.drip
+package com.ameyasingh.lamaisondeminiso
 
 import io.flutter.embedding.android.FlutterActivity
 

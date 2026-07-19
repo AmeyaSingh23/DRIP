@@ -32,7 +32,7 @@ class CloudinaryService:
         result = await asyncio.to_thread(
             cloudinary.uploader.upload,
             image_bytes,
-            folder=f"drip/{user_id}",
+            folder=f"la-maison-de-miniso/{user_id}",
             public_id=f"item_{idempotency_key}",
             resource_type="image",
             format="png",

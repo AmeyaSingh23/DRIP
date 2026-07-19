@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../outfits/data/outfit_repository.dart';
@@ -222,6 +223,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                 );
                             return Card(
                               child: ListTile(
+                                onTap:
+                                    entry?['outfit_id'] == null
+                                        ? null
+                                        : () => context.push(
+                                          '/outfits/${entry!['outfit_id']}',
+                                        ),
                                 leading: const Icon(Icons.schedule),
                                 title: Text(_slotLabel(slot)),
                                 subtitle: Text(

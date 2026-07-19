@@ -36,7 +36,7 @@ class _AuthRestoreScreen extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('DRIP'),
+            Text('La Maison de Miniso'),
             SizedBox(height: 16),
             SizedBox(
               width: 20,

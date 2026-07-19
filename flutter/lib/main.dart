@@ -6,17 +6,17 @@ import 'app/theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const ProviderScope(child: DripApp()));
+  runApp(const ProviderScope(child: LaMaisonDeMinisoApp()));
 }
 
-class DripApp extends ConsumerWidget {
-  const DripApp({super.key});
+class LaMaisonDeMinisoApp extends ConsumerWidget {
+  const LaMaisonDeMinisoApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) => MaterialApp.router(
-    title: 'DRIP',
+    title: 'La Maison de Miniso',
     debugShowCheckedModeBanner: false,
-    theme: buildDripTheme(),
+    theme: buildLaMaisonTheme(),
     routerConfig: ref.watch(appRouterProvider),
   );
 }

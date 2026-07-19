@@ -4,7 +4,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 
 final _wardrobeCache = CacheManager(
   Config(
-    'drip-wardrobe-thumbnails',
+    'la-maison-de-miniso-wardrobe-thumbnails',
     stalePeriod: const Duration(days: 14),
     maxNrOfCacheObjects: 180,
   ),

@@ -87,6 +87,9 @@ class _UploadScreenState extends State<UploadScreen> {
         maxHeight: 1920,
       );
       if (picked == null) {
+        if (mounted) {
+          setState(() => _status = _idleStatus);
+        }
         return;
       }
       if (!mounted) {
@@ -98,6 +101,9 @@ class _UploadScreenState extends State<UploadScreen> {
         ),
       );
       if (edited == null) {
+        if (mounted) {
+          setState(() => _status = _idleStatus);
+        }
         return;
       }
       if (mounted) {
@@ -269,7 +275,7 @@ class _UploadScreenState extends State<UploadScreen> {
       throw StateError('The selected image could not be decoded.');
     }
     final file = File(
-      '${(await getTemporaryDirectory()).path}/drip_cutout_source_${DateTime.now().microsecondsSinceEpoch}.jpg',
+      '${(await getTemporaryDirectory()).path}/la_maison_cutout_source_${DateTime.now().microsecondsSinceEpoch}.jpg',
     );
     await file.writeAsBytes(
       img.encodeJpg(
@@ -287,7 +293,7 @@ class _UploadScreenState extends State<UploadScreen> {
       throw StateError('The cutout could not be processed.');
     }
     final file = File(
-      '${(await getTemporaryDirectory()).path}/drip_cutout_${DateTime.now().microsecondsSinceEpoch}.png',
+      '${(await getTemporaryDirectory()).path}/la_maison_cutout_${DateTime.now().microsecondsSinceEpoch}.png',
     );
     await file.writeAsBytes(
       img.encodePng(_resizeToMaxSide(source, 1600), level: 6),
@@ -302,7 +308,7 @@ class _UploadScreenState extends State<UploadScreen> {
       throw StateError('The selected image could not be decoded.');
     }
     final file = File(
-      '${(await getTemporaryDirectory()).path}/drip_tagging_${DateTime.now().microsecondsSinceEpoch}.jpg',
+      '${(await getTemporaryDirectory()).path}/la_maison_tagging_${DateTime.now().microsecondsSinceEpoch}.jpg',
     );
     await file.writeAsBytes(
       img.encodeJpg(_resizeToMaxSide(source, 1280), quality: 85),

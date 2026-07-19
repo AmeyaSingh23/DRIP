@@ -1,4 +1,4 @@
-# DRIP — Phase 1: Auth & Base Setup
+# La Maison de Miniso — Phase 1: Auth & Base Setup
 
 This starter contains only Phase 1: the initial `users` migration, FastAPI register/login/me routes, and a Flutter authentication client.
 
