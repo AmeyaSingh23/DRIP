@@ -287,7 +287,8 @@ class BackgroundUploadWorker {
         await _queue.save(
           job.copyWith(
             status: BackgroundUploadStatus.failed,
-            error: 'This queued photo belongs to a different signed-in account.',
+            error:
+                'This queued photo belongs to a different signed-in account.',
           ),
         );
         return true;
@@ -307,27 +308,31 @@ class BackgroundUploadWorker {
       return false;
     }
 
+    // Auto jobs from an older app version must never bypass the new review
+    // screen and upload directly to Cloudinary.
+    if (job.mode != 'manual') {
+      await _queue.save(
+        job.copyWith(
+          status: BackgroundUploadStatus.failed,
+          error: 'This photo needs review before it can be uploaded.',
+        ),
+      );
+      return true;
+    }
+
     final attempt = job.attempts + 1;
     await _queue.save(job.copyWith(attempts: attempt, error: null));
     try {
       final cutout = File(job.cutoutPath);
-      final draft =
-          job.mode == 'manual'
-              ? await _repository.manualUpload(
-                cutout: cutout,
-                token: token,
-                itemName: job.itemName ?? '',
-                category: job.category ?? 'Custom',
-                color: job.color ?? '',
-                customCategory: job.customCategory,
-                idempotencyKey: job.idempotencyKey,
-              )
-              : await _repository.upload(
-                cutout: cutout,
-                taggingImage: File(job.taggingImagePath!),
-                token: token,
-                idempotencyKey: job.idempotencyKey,
-              );
+      final draft = await _repository.manualUpload(
+        cutout: cutout,
+        token: token,
+        itemName: job.itemName ?? '',
+        category: job.category ?? 'Custom',
+        color: job.color ?? '',
+        customCategory: job.customCategory,
+        idempotencyKey: job.idempotencyKey,
+      );
       final completed = job.copyWith(
         status: BackgroundUploadStatus.completed,
         response: draft.toJson(),

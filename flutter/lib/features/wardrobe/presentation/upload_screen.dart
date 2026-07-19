@@ -14,6 +14,7 @@ import '../../../core/network/api_client.dart';
 import '../data/background_upload_queue.dart';
 import '../data/wardrobe_repository.dart';
 import '../domain/clothing_item_draft.dart';
+import '../domain/clothing_tag_result.dart';
 import 'cutout_editor_screen.dart';
 import 'wardrobe_item_editor_dialog.dart';
 
@@ -49,10 +50,10 @@ class _UploadScreenState extends State<UploadScreen> {
   String? _queuedJobId;
   Timer? _jobWatcher;
   bool _checkingJob = false;
+  bool _wornItemDetected = false;
 
   @override
   void dispose() {
-    _jobWatcher?.cancel();
     super.dispose();
   }
 
@@ -68,6 +69,7 @@ class _UploadScreenState extends State<UploadScreen> {
       _manualTaggingNeeded = false;
       _idempotencyKey = const Uuid().v4();
       _queuedJobId = null;
+      _wornItemDetected = false;
       _status = 'Opening image…';
     });
     try {
@@ -112,23 +114,28 @@ class _UploadScreenState extends State<UploadScreen> {
       final preparedTaggingImage = await _downscaleForTagging(editedPhoto);
       taggingImage = preparedTaggingImage;
       if (mounted) setState(() => _status = 'Queueing secure upload…');
-      final job = await _backgroundQueue.enqueueAuto(
-        id: const Uuid().v4(),
-        idempotencyKey: _idempotencyKey!,
-        ownerEmail: widget.email,
-        cutout: uploadCutout,
+      final tags = await _repository.tag(
         taggingImage: preparedTaggingImage,
+        token: widget.token,
       );
       await _deleteTemporaryFile(preparedTaggingImage);
       taggingImage = null;
-      await _deleteTemporaryFile(uploadCutout);
+      if (tags.isWornOnPerson) {
+        await _deleteTemporaryFile(uploadCutout);
+        if (mounted) {
+          setState(() {
+            _manualCutout = null;
+            _wornItemDetected = true;
+            _status = _idleStatus;
+          });
+        }
+        return;
+      }
       if (mounted) {
         setState(() {
-          _queuedJobId = job.id;
-          _manualCutout = null;
-          _status = 'Upload queued. You can safely leave this screen.';
+          _draft = _draftFromTags(tags, uploadCutout);
+          _status = 'Review the detected tags';
         });
-        _watchJob(job.id);
       }
     } catch (error) {
       final isNonClothing = _isNonClothingError(error);
@@ -153,6 +160,7 @@ class _UploadScreenState extends State<UploadScreen> {
     }
   }
 
+  // ignore: unused_element
   void _watchJob(String jobId) {
     _jobWatcher?.cancel();
     _checkJob(jobId);
@@ -207,6 +215,20 @@ class _UploadScreenState extends State<UploadScreen> {
       _checkingJob = false;
     }
   }
+
+  ClothingItemDraft _draftFromTags(ClothingTagResult tags, File cutout) =>
+      ClothingItemDraft(
+        id: '',
+        cloudinaryUrl: cutout.path,
+        category: tags.category,
+        customCategory: tags.customCategory,
+        color: tags.color,
+        pattern: tags.pattern,
+        fabric: tags.fabric,
+        itemName: tags.itemName,
+        tags: tags.tags,
+        aiConfidence: tags.confidence,
+      );
 
   Future<void> _ensureCutoutModel() async {
     if (await NativeCutout.isModelAvailable()) return;
@@ -370,16 +392,31 @@ class _UploadScreenState extends State<UploadScreen> {
       _status = 'Saving your edits…';
     });
     try {
-      final updated = await _repository.update(
-        draft: draft,
-        token: widget.token,
-        itemName: result.itemName,
-        category: result.category,
-        customCategory: result.customCategory,
-        color: result.color,
-      );
+      final updated =
+          draft.id.isEmpty
+              ? await _repository.manualUpload(
+                cutout: _manualCutout!,
+                token: widget.token,
+                itemName: result.itemName,
+                category: result.category,
+                color: result.color,
+                customCategory: result.customCategory,
+                idempotencyKey: _idempotencyKey ??= const Uuid().v4(),
+              )
+              : await _repository.update(
+                draft: draft,
+                token: widget.token,
+                itemName: result.itemName,
+                category: result.category,
+                customCategory: result.customCategory,
+                color: result.color,
+              );
+      if (draft.id.isEmpty && _manualCutout != null) {
+        await _deleteTemporaryFile(_manualCutout!);
+      }
       setState(() {
         _draft = updated;
+        _manualCutout = null;
         _status = 'Item saved';
       });
     } catch (error) {
@@ -416,25 +453,23 @@ class _UploadScreenState extends State<UploadScreen> {
       _status = 'Saving your item…';
     });
     try {
-      final job = await _backgroundQueue.enqueueManual(
-        id: const Uuid().v4(),
-        idempotencyKey: _idempotencyKey ??= const Uuid().v4(),
-        ownerEmail: widget.email,
+      final saved = await _repository.manualUpload(
         cutout: cutout,
+        token: widget.token,
         itemName: result.itemName,
         category: result.category,
         color: result.color,
         customCategory: result.customCategory,
+        idempotencyKey: _idempotencyKey ??= const Uuid().v4(),
       );
       await _deleteTemporaryFile(cutout);
       if (mounted) {
         setState(() {
-          _queuedJobId = job.id;
+          _draft = saved;
           _manualCutout = null;
           _manualTaggingNeeded = false;
-          _status = 'Upload queued. You can safely leave this screen.';
+          _status = 'Item saved';
         });
-        _watchJob(job.id);
       }
     } catch (error) {
       if (mounted) {
@@ -475,6 +510,28 @@ class _UploadScreenState extends State<UploadScreen> {
               const SizedBox(height: 12),
               Text(_error!, style: TextStyle(color: Colors.red)),
             ],
+            if (_wornItemDetected) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF3E0),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.warning_amber_rounded),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'We detected this item is being worn.\nFor a clean cutout, try photographing it flat or on a hanger instead.',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             if (_queuedJobId != null) ...[
               const SizedBox(height: 16),
               const LinearProgressIndicator(),
@@ -493,13 +550,15 @@ class _UploadScreenState extends State<UploadScreen> {
             ],
             const SizedBox(height: 20),
             if (_draft != null) ...[
-              Image.network(
-                _draft!.cloudinaryUrl,
-                height: 220,
-                errorBuilder:
-                    (_, _, _) =>
-                        const Icon(Icons.image_not_supported, size: 80),
-              ),
+              _draft!.id.isEmpty
+                  ? Image.file(_manualCutout!, height: 220)
+                  : Image.network(
+                    _draft!.cloudinaryUrl,
+                    height: 220,
+                    errorBuilder:
+                        (_, _, _) =>
+                            const Icon(Icons.image_not_supported, size: 80),
+                  ),
               Text('AI confidence: ${(_draft!.aiConfidence * 100).round()}%'),
               if (_draft!.userVerified)
                 const Padding(

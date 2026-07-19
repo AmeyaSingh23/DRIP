@@ -18,6 +18,7 @@ from app.db.models.outfit import Outfit, OutfitItem
 from app.db.models.user import User
 from app.schemas.clothing_item import (
     CalendarUsage,
+    ClothingItemTags,
     ClothingItemUpdate,
     ClothingItemUploadResponse,
     ClothingItemUsageResponse,
@@ -166,74 +167,20 @@ async def get_item_usage(
     )
 
 
-@router.post("/upload", response_model=ClothingItemUploadResponse, status_code=status.HTTP_201_CREATED)
-async def upload_item(
-    cutout: UploadFile = File(...),
+@router.post("/tag", response_model=ClothingItemTags)
+async def tag_item(
     tagging_image: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db_session),
-    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
-) -> ClothingItemUploadResponse:
-    cutout_bytes, tagging_bytes = await asyncio.gather(cutout.read(), tagging_image.read())
-    cutout_type = _validate_image(cutout_bytes, cutout.content_type, 20 * 1024 * 1024, "Cutout")
+) -> ClothingItemTags:
+    tagging_bytes = await tagging_image.read()
     tagging_type = _validate_image(tagging_bytes, tagging_image.content_type, 4 * 1024 * 1024, "Tagging image")
-    if cutout_type != "image/png":
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Cutout must be a transparent PNG")
-
-    # Tag first. This avoids uploading a rejected image to Cloudinary.
     tags = await GeminiTagger().tag(tagging_bytes, tagging_type)
     if not tags.is_clothing_item:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="No clothing item was detected. Photograph one garment on a contrasting background and try again.",
         )
-
-    lease = await acquire_idempotency_lease(
-        session,
-        user_id=current_user.id,
-        operation="wardrobe_upload",
-        key=idempotency_key,
-    )
-    if lease.completed_resource_id is not None:
-        item = await session.scalar(
-            select(ClothingItem).where(
-                ClothingItem.id == lease.completed_resource_id,
-                ClothingItem.user_id == current_user.id,
-            )
-        )
-        if item is None:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This upload is no longer available. Start a new upload.")
-        return _response(item)
-
-    cloudinary = CloudinaryService()
-    cloudinary_url, public_id = await cloudinary.upload_cutout(
-        cutout_bytes,
-        current_user.id,
-        idempotency_key=lease.record.key,
-    )
-    item = ClothingItem(
-        user_id=current_user.id,
-        cloudinary_url=cloudinary_url,
-        cloudinary_public_id=public_id,
-        category=tags.category,
-        custom_category=tags.custom_category,
-        color=tags.color,
-        pattern=tags.pattern,
-        fabric=tags.fabric,
-        is_uniform=tags.is_uniform,
-        item_name=tags.item_name,
-        tags=tags.tags,
-        ai_confidence=tags.confidence,
-    )
-    try:
-        session.add(item)
-        await session.flush()
-        await complete_idempotency_lease(session, lease, item.id)
-        await session.refresh(item)
-    except Exception:
-        await session.rollback()
-        raise
-    return _response(item)
+    return tags
 
 
 @router.post("/manual", response_model=ClothingItemUploadResponse, status_code=status.HTTP_201_CREATED)

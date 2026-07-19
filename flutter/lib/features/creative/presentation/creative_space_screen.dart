@@ -67,6 +67,7 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
 
   final _repository = CreativeRepository();
   final _transform = TransformationController();
+  final _canvasKey = GlobalKey();
   final Map<_CanvasZone, ClothingItemDraft> _placed = {};
   final Map<_CanvasZone, Offset> _itemOffsets = {};
   List<ClothingItemDraft> _items = const [];
@@ -88,28 +89,6 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
     center: const Offset(2000, 1950),
     width: 360,
     height: 760,
-  );
-  Rect get _accessoriesRect => Rect.fromCenter(
-    center: const Offset(2000, 1940),
-    width: 300,
-    height: 620,
-  );
-  Rect get _shoesRect =>
-      Rect.fromCenter(center: const Offset(2000, 2290), width: 190, height: 95);
-  Rect get _bottomsRect => Rect.fromCenter(
-    center: const Offset(2000, 2040),
-    width: 220,
-    height: 265,
-  );
-  Rect get _topsRect => Rect.fromCenter(
-    center: const Offset(2000, 1775),
-    width: 220,
-    height: 265,
-  );
-  Rect get _outerwearRect => Rect.fromCenter(
-    center: const Offset(2000, 1770),
-    width: 255,
-    height: 290,
   );
 
   @override
@@ -196,32 +175,120 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
         : fallback;
   }
 
+  String _itemText(ClothingItemDraft item) =>
+      [
+        item.category,
+        item.customCategory,
+        item.itemName,
+        ...item.tags,
+      ].whereType<String>().join(' ').toLowerCase();
+
   _CanvasZone _zoneFor(ClothingItemDraft item) {
-    if (item.category == 'Tops' || item.category == 'Uniform') {
+    final text = _itemText(item);
+    if (item.category == 'Dresses' ||
+        text.contains('dress') ||
+        text.contains('gown') ||
+        text.contains('jumpsuit')) {
       return _CanvasZone.tops;
     }
-    if (item.category == 'Outerwear') return _CanvasZone.outerwear;
-    if (item.category == 'Bottoms' || item.category == 'Dresses') {
+    if (item.category == 'Tops' ||
+        item.category == 'Uniform' ||
+        text.contains('shirt') ||
+        text.contains('tee') ||
+        text.contains('blouse') ||
+        text.contains('polo') ||
+        text.contains('sweater') ||
+        text.contains('hoodie')) {
+      return _CanvasZone.tops;
+    }
+    if (item.category == 'Outerwear' ||
+        text.contains('jacket') ||
+        text.contains('coat') ||
+        text.contains('blazer') ||
+        text.contains('cardigan')) {
+      return _CanvasZone.outerwear;
+    }
+    if (item.category == 'Bottoms' ||
+        text.contains('short') ||
+        text.contains('brief') ||
+        text.contains('boxer') ||
+        text.contains('jean') ||
+        text.contains('trouser')) {
       return _CanvasZone.bottoms;
     }
-    if (item.category == 'Shoes') return _CanvasZone.shoes;
+    if (item.category == 'Shoes' ||
+        text.contains('shoe') ||
+        text.contains('sneaker') ||
+        text.contains('sandal') ||
+        text.contains('boot') ||
+        text.contains('heel')) {
+      return _CanvasZone.shoes;
+    }
     return _CanvasZone.accessories;
   }
 
-  bool _canDropOn(ClothingItemDraft item, _CanvasZone zone) {
-    if (item.category == 'Dresses') {
-      return zone == _CanvasZone.tops || zone == _CanvasZone.bottoms;
+  Rect _zoneRect(_CanvasZone zone, [ClothingItemDraft? item]) {
+    final text = item == null ? '' : _itemText(item);
+    if (item?.category == 'Dresses' ||
+        text.contains('dress') ||
+        text.contains('gown') ||
+        text.contains('jumpsuit')) {
+      return Rect.fromCenter(
+        center: const Offset(2000, 1980),
+        width: 390,
+        height: 730,
+      );
     }
-    return _zoneFor(item) == zone;
+    if (item?.category == 'Uniform') {
+      return Rect.fromCenter(
+        center: const Offset(2000, 1950),
+        width: 350,
+        height: 640,
+      );
+    }
+    return switch (zone) {
+      _CanvasZone.accessories => Rect.fromCenter(
+        center: const Offset(2000, 1780),
+        width: 250,
+        height: 210,
+      ),
+      _CanvasZone.shoes => Rect.fromCenter(
+        center: const Offset(2000, 2295),
+        width: 310,
+        height: 155,
+      ),
+      _CanvasZone.bottoms =>
+        (text.contains('brief') ||
+                text.contains('boxer') ||
+                text.contains('underwear'))
+            ? Rect.fromCenter(
+              center: const Offset(2000, 2025),
+              width: 270,
+              height: 170,
+            )
+            : (text.contains('short') || text.contains('skirt'))
+            ? Rect.fromCenter(
+              center: const Offset(2000, 2040),
+              width: 300,
+              height: 275,
+            )
+            : Rect.fromCenter(
+              center: const Offset(2000, 2070),
+              width: 300,
+              height: 410,
+            ),
+      _CanvasZone.tops => Rect.fromCenter(
+        center: const Offset(2000, 1775),
+        width: 330,
+        height: 350,
+      ),
+      _CanvasZone.outerwear => Rect.fromCenter(
+        center: const Offset(2000, 1790),
+        width: 360,
+        height: 430,
+      ),
+    };
   }
-
-  Rect _zoneRect(_CanvasZone zone) => switch (zone) {
-    _CanvasZone.accessories => _accessoriesRect,
-    _CanvasZone.shoes => _shoesRect,
-    _CanvasZone.bottoms => _bottomsRect,
-    _CanvasZone.tops => _topsRect,
-    _CanvasZone.outerwear => _outerwearRect,
-  };
 
   _CanvasZone? _zoneFromLayout(String value) => switch (value) {
     'accessories' => _CanvasZone.accessories,
@@ -241,27 +308,31 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
   };
 
   void _autoPlace(ClothingItemDraft item) {
-    if (item.category == 'Dresses') {
-      _placed[_CanvasZone.tops] = item;
-      _placed[_CanvasZone.bottoms] = item;
-      _itemOffsets[_CanvasZone.tops] = Offset.zero;
-      _itemOffsets[_CanvasZone.bottoms] = Offset.zero;
-      return;
-    }
     final zone = _zoneFor(item);
     _placed[zone] = item;
     _itemOffsets[zone] = Offset.zero;
   }
 
+  // ignore: unused_element
   void _place(ClothingItemDraft item, _CanvasZone zone) {
     setState(() {
       _saveIdempotencyKey = null;
-      if (item.category == 'Dresses') {
-        _autoPlace(item);
-      } else {
-        _placed[zone] = item;
-        _itemOffsets[zone] = Offset.zero;
-      }
+      _placed[zone] = item;
+      _itemOffsets[zone] = Offset.zero;
+    });
+  }
+
+  void _placeAt(DragTargetDetails<ClothingItemDraft> details) {
+    final box = _canvasKey.currentContext?.findRenderObject() as RenderBox?;
+    final item = details.data;
+    final zone = _zoneFor(item);
+    final scenePoint = box?.globalToLocal(details.offset);
+    final rect = _zoneRect(zone, item);
+    setState(() {
+      _saveIdempotencyKey = null;
+      _placed[zone] = item;
+      _itemOffsets[zone] =
+          scenePoint == null ? Offset.zero : scenePoint - rect.center;
     });
   }
 
@@ -295,7 +366,10 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
     final zone = _selectedZone;
     if (zone == null) return;
     final scenePoint = _transform.toScene(event.localPosition);
-    final itemBounds = _zoneRect(zone).shift(_itemOffsets[zone] ?? Offset.zero);
+    final itemBounds = _zoneRect(
+      zone,
+      _placed[zone],
+    ).shift(_itemOffsets[zone] ?? Offset.zero);
     if (!itemBounds.contains(scenePoint)) {
       setState(() => _selectedZone = null);
     }
@@ -540,7 +614,12 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Expanded(child: _itemList()),
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: _loadWardrobe,
+                    child: _itemList(),
+                  ),
+                ),
               ],
             ),
   );
@@ -561,6 +640,7 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
     final items = _filteredItems;
     if (items.isEmpty) return const Center(child: Text('No items'));
     return ListView.separated(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
       itemCount: items.length,
       separatorBuilder: (_, _) => const SizedBox(height: 8),
@@ -571,6 +651,7 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
   }
 
   Widget _draggableItem(ClothingItemDraft item) {
+    final isOnCanvas = _placed.values.any((placed) => placed.id == item.id);
     final thumbnail = DecoratedBox(
       decoration: BoxDecoration(
         color: const Color(0xFFFAFAF8),
@@ -603,12 +684,13 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
     );
     return Draggable<ClothingItemDraft>(
       data: item,
+      maxSimultaneousDrags: isOnCanvas ? 0 : 1,
       feedback: Opacity(
         opacity: .72,
         child: SizedBox(width: 96, height: 126, child: thumbnail),
       ),
       childWhenDragging: Opacity(opacity: .35, child: thumbnail),
-      child: thumbnail,
+      child: Opacity(opacity: isOnCanvas ? .42 : 1, child: thumbnail),
     );
   }
 
@@ -623,20 +705,29 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
           child: Stack(
             children: [
               Positioned.fill(
-                child: Listener(
-                  onPointerDown: _deselectIfOutside,
-                  child: InteractiveViewer(
-                    transformationController: _transform,
-                    minScale: .28,
-                    maxScale: 3.5,
-                    boundaryMargin: const EdgeInsets.all(900),
-                    constrained: false,
-                    child: SizedBox(
-                      width: _planeSize.width,
-                      height: _planeSize.height,
-                      child: _canvasStack(),
-                    ),
-                  ),
+                child: DragTarget<ClothingItemDraft>(
+                  onWillAcceptWithDetails:
+                      (details) =>
+                          !_placed.values.any(
+                            (item) => item.id == details.data.id,
+                          ),
+                  onAcceptWithDetails: _placeAt,
+                  builder:
+                      (context, candidates, _) => Listener(
+                        onPointerDown: _deselectIfOutside,
+                        child: InteractiveViewer(
+                          transformationController: _transform,
+                          minScale: .28,
+                          maxScale: 3.5,
+                          boundaryMargin: const EdgeInsets.all(900),
+                          constrained: false,
+                          child: SizedBox(
+                            width: _planeSize.width,
+                            height: _planeSize.height,
+                            child: _canvasStack(),
+                          ),
+                        ),
+                      ),
                 ),
               ),
               if (_selectedZone != null && _placed.containsKey(_selectedZone))
@@ -649,36 +740,14 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
   );
 
   Widget _canvasStack() => Stack(
+    key: _canvasKey,
     clipBehavior: Clip.none,
     children: [
       Positioned.fill(child: CustomPaint(painter: _GridPainter())),
-      Positioned.fill(
-        child: DragTarget<ClothingItemDraft>(
-          onWillAcceptWithDetails: (_) => true,
-          onAcceptWithDetails:
-              (details) => _place(details.data, _zoneFor(details.data)),
-          builder:
-              (_, candidates, _) => DecoratedBox(
-                decoration: BoxDecoration(
-                  border:
-                      candidates.isEmpty
-                          ? null
-                          : Border.all(
-                            color: Theme.of(context).colorScheme.primary,
-                            width: 3,
-                          ),
-                ),
-              ),
-        ),
-      ),
       Positioned.fromRect(
         rect: _dummyRect,
         child: IgnorePointer(child: _croppedDummy()),
       ),
-      _dropZone(_CanvasZone.shoes),
-      _dropZone(_CanvasZone.bottoms),
-      _dropZone(_CanvasZone.tops),
-      _dropZone(_CanvasZone.outerwear),
       _placedLayer(_CanvasZone.accessories),
       _placedLayer(_CanvasZone.shoes),
       _placedLayer(_CanvasZone.bottoms),
@@ -688,42 +757,9 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
     ],
   );
 
-  Widget _placedLayer(_CanvasZone zone) =>
-      Positioned.fromRect(rect: _zoneRect(zone), child: _placedItem(zone));
-
-  Widget _dropZone(_CanvasZone zone) => Positioned.fromRect(
-    rect: _zoneRect(zone),
-    child: DragTarget<ClothingItemDraft>(
-      onWillAcceptWithDetails: (details) => _canDropOn(details.data, zone),
-      onAcceptWithDetails: (details) => _place(details.data, zone),
-      builder:
-          (context, candidates, _) => AnimatedContainer(
-            duration: const Duration(milliseconds: 120),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
-              border:
-                  candidates.isEmpty
-                      ? null
-                      : Border.all(
-                        color: Theme.of(context).colorScheme.primary,
-                        width: 4,
-                      ),
-              boxShadow:
-                  candidates.isEmpty
-                      ? null
-                      : [
-                        BoxShadow(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.primary.withValues(alpha: .25),
-                          blurRadius: 18,
-                          spreadRadius: 3,
-                        ),
-                      ],
-            ),
-            child: const SizedBox.expand(),
-          ),
-    ),
+  Widget _placedLayer(_CanvasZone zone) => Positioned.fromRect(
+    rect: _zoneRect(zone, _placed[zone]),
+    child: _placedItem(zone),
   );
 
   Widget _placedItem(_CanvasZone zone) {
@@ -760,7 +796,7 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
   }
 
   Widget _removeButton(_CanvasZone zone) {
-    final rect = _zoneRect(zone);
+    final rect = _zoneRect(zone, _placed[zone]);
     final offset = _itemOffsets[zone] ?? Offset.zero;
     return Positioned(
       left: rect.right + offset.dx - 20,

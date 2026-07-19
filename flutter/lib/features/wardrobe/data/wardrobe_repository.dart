@@ -5,6 +5,7 @@ import 'package:http_parser/http_parser.dart';
 
 import '../../../core/network/api_client.dart';
 import '../domain/clothing_item_draft.dart';
+import '../domain/clothing_tag_result.dart';
 import '../domain/clothing_item_usage.dart';
 
 final class WardrobeRepository {
@@ -12,18 +13,11 @@ final class WardrobeRepository {
 
   final ApiClient _client;
 
-  Future<ClothingItemDraft> upload({
-    required File cutout,
+  Future<ClothingTagResult> tag({
     required File taggingImage,
     required String token,
-    required String idempotencyKey,
   }) async {
     final form = FormData.fromMap({
-      'cutout': await MultipartFile.fromFile(
-        cutout.path,
-        filename: 'cutout.png',
-        contentType: MediaType('image', 'png'),
-      ),
       'tagging_image': await MultipartFile.fromFile(
         taggingImage.path,
         filename: 'tagging.jpg',
@@ -31,18 +25,15 @@ final class WardrobeRepository {
       ),
     });
     final response = await _client.dio.post<Map<String, dynamic>>(
-      '/api/v1/items/upload',
+      '/api/v1/items/tag',
       data: form,
       options: Options(
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Idempotency-Key': idempotencyKey,
-        },
+        headers: {'Authorization': 'Bearer $token'},
         sendTimeout: const Duration(seconds: 30),
         receiveTimeout: const Duration(seconds: 90),
       ),
     );
-    return ClothingItemDraft.fromJson(response.data!);
+    return ClothingTagResult.fromJson(response.data!);
   }
 
   Future<ClothingItemDraft> manualUpload({

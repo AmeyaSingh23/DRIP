@@ -22,6 +22,7 @@ Identify only the most prominent garment. Use Custom only when there is no recog
 
 Set is_clothing_item to false for animals, people, faces, food, rooms, screenshots, scenery, or any image without a garment. Do not classify a non-garment as Custom.
 Set is_clothing_item to true only when a garment is visibly present, even if its background is poor.
+Set is_worn_on_person to true when the prominent garment is being worn by a visible person or mannequin. A flat-lay, hanger, or product-only photo is false.
 
 Use exactly one broad category: Tops, Bottoms, Outerwear, Shoes, Dresses, Accessories, Uniform, or Custom.
 Examples: T-shirt, polo, shirt, blouse, hoodie, and sweater are Tops. Shorts, boxer shorts, briefs, trousers, jeans, and skirts are Bottoms.
@@ -103,6 +104,7 @@ def _repair(raw: dict[str, object]) -> ClothingItemTags:
         return ClothingItemTags(is_clothing_item=False, confidence=confidence)
     return ClothingItemTags(
         is_clothing_item=True,
+        is_worn_on_person=raw.get("is_worn_on_person") is True,
         category=category,
         custom_category=str(raw["custom_category"]).strip()[:100] if category == "Custom" and raw.get("custom_category") else None,
         color=_normalize_color(raw.get("color")),
