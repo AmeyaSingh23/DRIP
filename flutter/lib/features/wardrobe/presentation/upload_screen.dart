@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
@@ -12,6 +13,7 @@ import '../../../core/network/api_client.dart';
 import '../data/wardrobe_repository.dart';
 import '../domain/clothing_tag_result.dart';
 import 'cutout_editor_screen.dart';
+import 'wardrobe_change_notifier.dart';
 
 final class UploadRouteArgs {
   const UploadRouteArgs({required this.token, required this.email});
@@ -19,15 +21,15 @@ final class UploadRouteArgs {
   final String email;
 }
 
-class UploadScreen extends StatefulWidget {
+class UploadScreen extends ConsumerStatefulWidget {
   const UploadScreen({required this.token, required this.email, super.key});
   final String token;
   final String email;
   @override
-  State<UploadScreen> createState() => _UploadScreenState();
+  ConsumerState<UploadScreen> createState() => _UploadScreenState();
 }
 
-class _UploadScreenState extends State<UploadScreen> {
+class _UploadScreenState extends ConsumerState<UploadScreen> {
   static const _idleStatus = 'Choose a clothing photo';
   static const _categories = [
     'Tops',
@@ -221,6 +223,7 @@ class _UploadScreenState extends State<UploadScreen> {
       );
       await _deleteTemporaryFile(cutout);
       if (mounted) {
+        ref.read(wardrobeRevisionProvider.notifier).notifyChanged();
         setState(() {
           _cutout = null;
           _status = 'Item saved';

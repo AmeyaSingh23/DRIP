@@ -1,9 +1,11 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/widgets/cached_wardrobe_image.dart';
 import '../../wardrobe/domain/clothing_item_draft.dart';
+import '../../wardrobe/presentation/wardrobe_change_notifier.dart';
 import '../data/creative_repository.dart';
 import '../../outfits/domain/outfit_item_layout.dart';
 
@@ -29,7 +31,7 @@ final class CreativeRouteArgs {
 
 enum _CanvasZone { accessories, shoes, bottoms, tops, outerwear }
 
-class CreativeSpaceScreen extends StatefulWidget {
+class CreativeSpaceScreen extends ConsumerStatefulWidget {
   const CreativeSpaceScreen({
     required this.token,
     this.initialItems,
@@ -50,10 +52,10 @@ class CreativeSpaceScreen extends StatefulWidget {
   final bool? startCollapsed;
 
   @override
-  State<CreativeSpaceScreen> createState() => _CreativeSpaceScreenState();
+  ConsumerState<CreativeSpaceScreen> createState() => _CreativeSpaceScreenState();
 }
 
-class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
+class _CreativeSpaceScreenState extends ConsumerState<CreativeSpaceScreen> {
   static const _baseCategories = [
     'All',
     'Tops',
@@ -137,6 +139,19 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
       if (!mounted || epoch != _loadEpoch) return;
       setState(() {
         _items = items;
+        final activeIds = items.map((item) => item.id).toSet();
+        final missingZones = _placed.entries
+            .where((entry) => !activeIds.contains(entry.value.id))
+            .map((entry) => entry.key)
+            .toList();
+        for (final zone in missingZones) {
+          _placed.remove(zone);
+          _itemOffsets.remove(zone);
+          _itemScales.remove(zone);
+        }
+        if (_selectedZone != null && !_placed.containsKey(_selectedZone)) {
+          _selectedZone = null;
+        }
         if (!_categories.contains(_selectedCategory)) _selectedCategory = 'All';
       });
     } on DioException catch (error) {
@@ -531,7 +546,9 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) {
+    ref.listen(wardrobeRevisionProvider, (_, _) => _loadWardrobe());
+    return Scaffold(
     appBar: AppBar(
       title: const Text('Studio'),
       actions: [
@@ -587,7 +604,8 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
         ],
       ),
     ),
-  );
+    );
+  }
 
   Widget _sidebar() => AnimatedContainer(
     duration: const Duration(milliseconds: 250),

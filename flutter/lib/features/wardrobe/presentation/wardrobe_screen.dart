@@ -7,6 +7,7 @@ import '../../../core/network/api_client.dart';
 import '../../../core/widgets/cached_wardrobe_image.dart';
 import '../data/wardrobe_repository.dart';
 import '../domain/clothing_item_draft.dart';
+import 'wardrobe_change_notifier.dart';
 import 'upload_screen.dart';
 
 class WardrobeScreen extends ConsumerStatefulWidget {
@@ -171,6 +172,7 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
       } else {
         await _repository.softDelete(itemId: item.id, token: widget.token);
       }
+      ref.read(wardrobeRevisionProvider.notifier).notifyChanged();
       await _load();
     } on DioException catch (error) {
       if (mounted) {
@@ -221,6 +223,7 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(wardrobeRevisionProvider, (_, _) => _load());
     final items = _filteredItems;
     return Scaffold(
       appBar: AppBar(

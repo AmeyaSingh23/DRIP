@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_client.dart';
@@ -8,8 +9,9 @@ import '../data/wardrobe_repository.dart';
 import '../domain/clothing_item_draft.dart';
 import '../domain/clothing_item_usage.dart';
 import 'wardrobe_item_editor_dialog.dart';
+import 'wardrobe_change_notifier.dart';
 
-class ItemDetailScreen extends StatefulWidget {
+class ItemDetailScreen extends ConsumerStatefulWidget {
   const ItemDetailScreen({
     required this.itemId,
     required this.token,
@@ -20,10 +22,10 @@ class ItemDetailScreen extends StatefulWidget {
   final String token;
 
   @override
-  State<ItemDetailScreen> createState() => _ItemDetailScreenState();
+  ConsumerState<ItemDetailScreen> createState() => _ItemDetailScreenState();
 }
 
-class _ItemDetailScreenState extends State<ItemDetailScreen> {
+class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
   final _repository = WardrobeRepository(ApiClient());
   ClothingItemDraft? _item;
   ClothingItemUsage? _usage;
@@ -95,6 +97,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
         customCategory: values.customCategory,
         color: values.color,
       );
+      ref.read(wardrobeRevisionProvider.notifier).notifyChanged();
       await _load();
     } on DioException catch (error) {
       if (mounted) {
@@ -150,6 +153,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
       } else {
         await _repository.softDelete(itemId: item.id, token: widget.token);
       }
+      ref.read(wardrobeRevisionProvider.notifier).notifyChanged();
       if (mounted) Navigator.pop(context, true);
     } on DioException catch (error) {
       if (mounted) {
