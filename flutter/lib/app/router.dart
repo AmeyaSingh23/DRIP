@@ -24,6 +24,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             initialItems: args.initialItems,
             initialName: args.initialName,
             initialOccasion: args.initialOccasion,
+            initialLayout: args.initialLayout,
             editingOutfitId: args.editingOutfitId,
             startCollapsed: args.startCollapsed,
           );

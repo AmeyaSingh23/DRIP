@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../wardrobe/domain/clothing_item_draft.dart';
 import '../data/creative_repository.dart';
+import '../../outfits/domain/outfit_item_layout.dart';
 
 final class CreativeRouteArgs {
   const CreativeRouteArgs({
@@ -11,6 +12,7 @@ final class CreativeRouteArgs {
     this.initialItems,
     this.initialName,
     this.initialOccasion,
+    this.initialLayout,
     this.editingOutfitId,
     this.startCollapsed,
   });
@@ -19,6 +21,7 @@ final class CreativeRouteArgs {
   final List<ClothingItemDraft>? initialItems;
   final String? initialName;
   final String? initialOccasion;
+  final List<OutfitItemLayout>? initialLayout;
   final String? editingOutfitId;
   final bool? startCollapsed;
 }
@@ -31,6 +34,7 @@ class CreativeSpaceScreen extends StatefulWidget {
     this.initialItems,
     this.initialName,
     this.initialOccasion,
+    this.initialLayout,
     this.editingOutfitId,
     this.startCollapsed,
     super.key,
@@ -40,6 +44,7 @@ class CreativeSpaceScreen extends StatefulWidget {
   final List<ClothingItemDraft>? initialItems;
   final String? initialName;
   final String? initialOccasion;
+  final List<OutfitItemLayout>? initialLayout;
   final String? editingOutfitId;
   final bool? startCollapsed;
 
@@ -116,8 +121,19 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
             ? widget.initialName!.trim()
             : _outfitName;
     _occasion = widget.initialOccasion;
-    for (final item in widget.initialItems ?? const <ClothingItemDraft>[]) {
-      _autoPlace(item);
+    final initialItems = widget.initialItems ?? const <ClothingItemDraft>[];
+    final itemById = {for (final item in initialItems) item.id: item};
+    final restoredIds = <String>{};
+    for (final layout in widget.initialLayout ?? const <OutfitItemLayout>[]) {
+      final item = itemById[layout.itemId];
+      final zone = _zoneFromLayout(layout.zone);
+      if (item == null || zone == null) continue;
+      _placed[zone] = item;
+      _itemOffsets[zone] = Offset(layout.offsetX, layout.offsetY);
+      restoredIds.add(item.id);
+    }
+    for (final item in initialItems) {
+      if (!restoredIds.contains(item.id)) _autoPlace(item);
     }
     _loadWardrobe();
   }
@@ -205,6 +221,23 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
     _CanvasZone.bottoms => _bottomsRect,
     _CanvasZone.tops => _topsRect,
     _CanvasZone.outerwear => _outerwearRect,
+  };
+
+  _CanvasZone? _zoneFromLayout(String value) => switch (value) {
+    'accessories' => _CanvasZone.accessories,
+    'shoes' => _CanvasZone.shoes,
+    'bottoms' => _CanvasZone.bottoms,
+    'tops' => _CanvasZone.tops,
+    'outerwear' => _CanvasZone.outerwear,
+    _ => null,
+  };
+
+  String _layoutZone(_CanvasZone zone) => switch (zone) {
+    _CanvasZone.accessories => 'accessories',
+    _CanvasZone.shoes => 'shoes',
+    _CanvasZone.bottoms => 'bottoms',
+    _CanvasZone.tops => 'tops',
+    _CanvasZone.outerwear => 'outerwear',
   };
 
   void _autoPlace(ClothingItemDraft item) {
@@ -299,6 +332,22 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
         .toList();
   }
 
+  List<OutfitItemLayout> get _itemLayout =>
+      _CanvasZone.values
+          .map((zone) {
+            final item = _placed[zone];
+            if (item == null) return null;
+            final offset = _itemOffsets[zone] ?? Offset.zero;
+            return OutfitItemLayout(
+              itemId: item.id,
+              zone: _layoutZone(zone),
+              offsetX: offset.dx,
+              offsetY: offset.dy,
+            );
+          })
+          .whereType<OutfitItemLayout>()
+          .toList();
+
   Future<void> _save() async {
     final items = _placedItems;
     if (items.isEmpty) {
@@ -326,6 +375,7 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
         token: widget.token,
         items: items,
         name: _outfitName,
+        itemLayout: _itemLayout,
         occasion: _occasion,
         outfitId: widget.editingOutfitId,
         idempotencyKey: _saveIdempotencyKey ??= const Uuid().v4(),

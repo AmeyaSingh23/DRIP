@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 
 import '../../../core/network/api_client.dart';
 import '../domain/outfit_preview.dart';
+import '../domain/outfit_item_layout.dart';
 import '../domain/saved_outfit.dart';
 
 final class OutfitRepository {
@@ -36,6 +37,7 @@ final class OutfitRepository {
   Future<void> save({
     required String token,
     required OutfitPreview preview,
+    required List<OutfitItemLayout> itemLayout,
     required String idempotencyKey,
   }) => _client.dio.post<void>(
     '/api/v1/outfits',
@@ -43,6 +45,7 @@ final class OutfitRepository {
       'name': preview.name,
       'occasion': preview.occasion,
       'item_ids': preview.itemIds,
+      'item_layout': itemLayout.map((entry) => entry.toJson()).toList(),
       'is_ai_generated': true,
     },
     options: Options(
@@ -81,6 +84,7 @@ final class OutfitRepository {
     String? name,
     String? occasion,
     List<String>? itemIds,
+    List<OutfitItemLayout>? itemLayout,
   }) async {
     final response = await _client.dio.patch<Map<String, dynamic>>(
       '/api/v1/outfits/$outfitId',
@@ -88,6 +92,8 @@ final class OutfitRepository {
         'name': name,
         'occasion': occasion,
         if (itemIds != null) 'item_ids': itemIds,
+        if (itemLayout != null)
+          'item_layout': itemLayout.map((entry) => entry.toJson()).toList(),
       },
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );

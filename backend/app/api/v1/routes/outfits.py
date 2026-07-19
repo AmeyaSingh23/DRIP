@@ -11,7 +11,7 @@ from app.api.v1.routes.items import _response
 from app.db.models.clothing_item import ClothingItem
 from app.db.models.outfit import Outfit, OutfitItem
 from app.db.models.user import User
-from app.schemas.outfit import OutfitCreate, OutfitGenerateRequest, OutfitPreview, OutfitResponse, OutfitUpdate
+from app.schemas.outfit import OutfitCreate, OutfitGenerateRequest, OutfitItemLayout, OutfitPreview, OutfitResponse, OutfitUpdate
 from app.services.gemini_outfit_generator import GeminiOutfitGenerator
 from app.services.idempotency import acquire_idempotency_lease, complete_idempotency_lease
 
@@ -58,8 +58,21 @@ def _outfit_response(outfit: Outfit, items: list[ClothingItem]) -> OutfitRespons
         occasion=outfit.occasion,
         is_ai_generated=outfit.is_ai_generated,
         created_at=outfit.created_at,
+        item_layout=outfit.item_layout or [],
         items=[_response(item) for item in items],
     )
+
+
+def _layout_json(
+    layout: list[OutfitItemLayout], item_ids: list[UUID]
+) -> list[dict[str, object]]:
+    allowed_ids = set(item_ids)
+    if any(entry.item_id not in allowed_ids for entry in layout):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Canvas layout includes an item outside this outfit",
+        )
+    return [entry.model_dump(mode="json") for entry in layout]
 
 
 async def _outfit_with_items(
@@ -139,6 +152,11 @@ async def update_outfit(
                 )
                 for index, item_id in enumerate(item_ids)
             ]
+        )
+    if "item_layout" in values:
+        outfit.item_layout = _layout_json(
+            payload.item_layout or [],
+            [item.id for item in items],
         )
     await session.commit()
     await session.refresh(outfit)
@@ -225,6 +243,7 @@ async def save_outfit(
         name=payload.name,
         occasion=payload.occasion,
         is_ai_generated=payload.is_ai_generated,
+        item_layout=_layout_json(payload.item_layout, payload.item_ids),
     )
     session.add(outfit)
     await session.flush()

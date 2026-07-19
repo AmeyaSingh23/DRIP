@@ -80,6 +80,7 @@ class _OutfitGeneratorScreenState extends State<OutfitGeneratorScreen> {
       await _repository.save(
         token: widget.token,
         preview: preview,
+        itemLayout: const [],
         idempotencyKey: _saveIdempotencyKey ??= const Uuid().v4(),
       );
       if (mounted) {

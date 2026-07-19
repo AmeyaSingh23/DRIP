@@ -1,6 +1,7 @@
 import '../../../core/network/api_client.dart';
 import '../../outfits/data/outfit_repository.dart';
 import '../../outfits/domain/outfit_preview.dart';
+import '../../outfits/domain/outfit_item_layout.dart';
 import '../../wardrobe/data/wardrobe_repository.dart';
 import '../../wardrobe/domain/clothing_item_draft.dart';
 
@@ -21,6 +22,7 @@ final class CreativeRepository {
     required String token,
     required List<ClothingItemDraft> items,
     required String name,
+    required List<OutfitItemLayout> itemLayout,
     String? occasion,
     String? outfitId,
     required String idempotencyKey,
@@ -44,12 +46,14 @@ final class CreativeRepository {
         name: name,
         occasion: occasion,
         itemIds: preview.itemIds,
+        itemLayout: itemLayout,
       );
     }
     return _outfits.save(
       token: token,
       idempotencyKey: idempotencyKey,
       preview: preview,
+      itemLayout: itemLayout,
     );
   }
 }

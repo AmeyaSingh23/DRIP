@@ -163,6 +163,7 @@ class _OutfitDetailScreenState extends State<OutfitDetailScreen> {
                               initialItems: outfit.items,
                               initialName: outfit.name,
                               initialOccasion: outfit.occasion,
+                              initialLayout: outfit.itemLayout,
                               editingOutfitId: outfit.id,
                               startCollapsed: true,
                             ),
