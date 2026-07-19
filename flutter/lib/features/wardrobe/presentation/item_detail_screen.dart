@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../../core/widgets/cached_wardrobe_image.dart';
 import '../data/wardrobe_repository.dart';
 import '../domain/clothing_item_draft.dart';
 import '../domain/clothing_item_usage.dart';
@@ -258,15 +259,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                         ),
                         child: Padding(
                           padding: const EdgeInsets.all(20),
-                          child: Image.network(
-                            item.cloudinaryUrl,
-                            fit: BoxFit.contain,
-                            errorBuilder:
-                                (_, _, _) => const Icon(
-                                  Icons.image_not_supported_outlined,
-                                  size: 48,
-                                ),
-                          ),
+                          child: CachedWardrobeImage(url: item.cloudinaryUrl),
                         ),
                       ),
                       const SizedBox(height: 24),
@@ -286,20 +279,14 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                       if (item.createdAt != null)
                         _InfoRow('Added', _formattedDate(item.createdAt!)),
                       const SizedBox(height: 14),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          Chip(
-                            label: Text(
-                              item.userVerified
-                                  ? 'Verified by you'
-                                  : 'AI confidence ${(item.aiConfidence * 100).round()}%',
-                            ),
-                          ),
-                          ...item.tags.map((tag) => Chip(label: Text(tag))),
-                        ],
-                      ),
+                      if (item.tags.isNotEmpty)
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            ...item.tags.map((tag) => Chip(label: Text(tag))),
+                          ],
+                        ),
                       const SizedBox(height: 28),
                       Text(
                         'Used in ${usage.outfitCount} saved outfit${usage.outfitCount == 1 ? '' : 's'}',

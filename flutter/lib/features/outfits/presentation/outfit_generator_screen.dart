@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../../core/widgets/cached_wardrobe_image.dart';
 import '../../creative/presentation/creative_space_screen.dart';
 import '../data/outfit_repository.dart';
 import '../domain/outfit_preview.dart';
@@ -195,9 +196,8 @@ class _OutfitGeneratorScreenState extends State<OutfitGeneratorScreen> {
                                   Expanded(
                                     child: Padding(
                                       padding: const EdgeInsets.all(8),
-                                      child: Image.network(
-                                        item.cloudinaryUrl,
-                                        fit: BoxFit.contain,
+                                      child: CachedWardrobeImage(
+                                        url: item.cloudinaryUrl,
                                       ),
                                     ),
                                   ),

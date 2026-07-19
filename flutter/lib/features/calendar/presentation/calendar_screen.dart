@@ -285,13 +285,19 @@ class _ScheduleDialogState extends State<_ScheduleDialog> {
         DropdownButtonFormField<SavedOutfit>(
           key: ValueKey(_selected?.id),
           initialValue: _selected,
+          isExpanded: true,
+          menuMaxHeight: 360,
+          borderRadius: BorderRadius.circular(12),
           decoration: const InputDecoration(labelText: 'Outfit'),
           items:
               widget.outfits
                   .map(
                     (outfit) => DropdownMenuItem(
                       value: outfit,
-                      child: Text(outfit.name ?? 'Untitled outfit'),
+                      child: Text(
+                        outfit.name ?? 'Untitled outfit',
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   )
                   .toList(),
@@ -301,7 +307,10 @@ class _ScheduleDialogState extends State<_ScheduleDialog> {
         TextField(
           controller: _notes,
           maxLength: 1000,
-          decoration: const InputDecoration(labelText: 'Notes (optional)'),
+          decoration: const InputDecoration(
+            labelText: 'Notes (optional)',
+            counterText: '',
+          ),
         ),
       ],
     ),

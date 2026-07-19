@@ -96,7 +96,7 @@ class _CutoutEditorScreenState extends State<CutoutEditorScreen> {
           const Padding(
             padding: EdgeInsets.fromLTRB(24, 16, 24, 8),
             child: Text(
-              'Frame one garment before background removal. The original photo remains unchanged.',
+              'Crop tightly while keeping the full garment in frame. Your original photo won’t be changed.',
             ),
           ),
           Expanded(

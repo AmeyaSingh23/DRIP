@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../../core/widgets/cached_wardrobe_image.dart';
 import '../data/outfit_repository.dart';
 import '../domain/saved_outfit.dart';
 
@@ -183,9 +184,11 @@ class _OutfitsScreenState extends State<OutfitsScreen> {
                                 itemBuilder:
                                     (context, itemIndex) => AspectRatio(
                                       aspectRatio: .75,
-                                      child: Image.network(
-                                        outfit.items[itemIndex].cloudinaryUrl,
-                                        fit: BoxFit.contain,
+                                      child: CachedWardrobeImage(
+                                        url:
+                                            outfit
+                                                .items[itemIndex]
+                                                .cloudinaryUrl,
                                       ),
                                     ),
                               ),

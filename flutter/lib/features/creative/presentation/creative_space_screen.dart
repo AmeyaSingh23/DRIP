@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../core/widgets/cached_wardrobe_image.dart';
 import '../../wardrobe/domain/clothing_item_draft.dart';
 import '../data/creative_repository.dart';
 import '../../outfits/domain/outfit_item_layout.dart';
@@ -237,192 +238,51 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
 
   Rect _zoneRect(_CanvasZone zone, [ClothingItemDraft? item]) {
     final text = item == null ? '' : _itemText(item);
-    bool has(String word) => text.contains(word);
-
-    // Full-body garments use the mannequin's complete silhouette.
-    if (has('gown') || has('maxi dress')) {
-      return Rect.fromCenter(
-        center: const Offset(2000, 1985),
-        width: 300,
-        height: 650,
-      );
-    }
-    if (item?.category == 'Dresses' || has('dress')) {
+    // These are just sensible starting bounds.  The saved per-item scale is
+    // deliberately the authority, so we do not maintain a brittle list of
+    // special cases for every garment name.
+    if (item?.category == 'Dresses' ||
+        text.contains('dress') ||
+        text.contains('gown') ||
+        text.contains('jumpsuit')) {
       return Rect.fromCenter(
         center: const Offset(2000, 1950),
-        width: 255,
-        height: 470,
-      );
-    }
-    if (has('jumpsuit') || has('romper')) {
-      return Rect.fromCenter(
-        center: const Offset(2000, 1970),
         width: 250,
-        height: 525,
+        height: 500,
       );
     }
     if (item?.category == 'Uniform') {
       return Rect.fromCenter(
-        center: const Offset(2000, 1950),
-        width: 285,
-        height: 560,
-      );
-    }
-
-    // Tops follow the torso, with smaller cuts for intimate/tank styles.
-    if (zone == _CanvasZone.tops) {
-      if (has('bra') || has('bralette') || has('bikini top')) {
-        return Rect.fromCenter(
-          center: const Offset(2000, 1810),
-          width: 190,
-          height: 125,
-        );
-      }
-      if (has('tank') || has('camisole') || has('crop top')) {
-        return Rect.fromCenter(
-          center: const Offset(2000, 1790),
-          width: 190,
-          height: 255,
-        );
-      }
-      if (has('hoodie') || has('sweater') || has('sweatshirt')) {
-        return Rect.fromCenter(
-          center: const Offset(2000, 1790),
-          width: 275,
-          height: 300,
-        );
-      }
-      return Rect.fromCenter(
-        center: const Offset(2000, 1780),
-        width: 250,
-        height: 280,
-      );
-    }
-
-    // Outerwear is intentionally a little wider than a top, never wider than
-    // the mannequin's shoulders.
-    if (zone == _CanvasZone.outerwear) {
-      if (has('coat') || has('trench') || has('parka')) {
-        return Rect.fromCenter(
-          center: const Offset(2000, 1880),
-          width: 290,
-          height: 455,
-        );
-      }
-      return Rect.fromCenter(
-        center: const Offset(2000, 1800),
-        width: 275,
-        height: 315,
-      );
-    }
-
-    // Bottoms are selected by garment cut rather than one shared rectangle.
-    if (zone == _CanvasZone.bottoms) {
-      if (has('brief') || has('panty') || has('underwear')) {
-        return Rect.fromCenter(
-          center: const Offset(2000, 2020),
-          width: 175,
-          height: 125,
-        );
-      }
-      if (has('boxer')) {
-        return Rect.fromCenter(
-          center: const Offset(2000, 2035),
-          width: 235,
-          height: 185,
-        );
-      }
-      if (has('short') || has('skirt')) {
-        return Rect.fromCenter(
-          center: const Offset(2000, 2050),
-          width: 245,
-          height: 225,
-        );
-      }
-      if (has('wide leg') || has('palazzo')) {
-        return Rect.fromCenter(
-          center: const Offset(2000, 2085),
-          width: 285,
-          height: 390,
-        );
-      }
-      return Rect.fromCenter(
-        center: const Offset(2000, 2080),
-        width: 245,
-        height: 380,
-      );
-    }
-
-    if (zone == _CanvasZone.shoes) {
-      if (has('boot')) {
-        return Rect.fromCenter(
-          center: const Offset(2000, 2245),
-          width: 210,
-          height: 230,
-        );
-      }
-      return Rect.fromCenter(
-        center: const Offset(2000, 2295),
-        width: 250,
-        height: 125,
-      );
-    }
-
-    // Accessories get practical defaults, including Custom items whose names
-    // identify their type. They remain freely movable after placement.
-    if (has('belt')) {
-      return Rect.fromCenter(
-        center: const Offset(2000, 1960),
-        width: 230,
-        height: 65,
-      );
-    }
-    if (has('hat') || has('cap')) {
-      return Rect.fromCenter(
-        center: const Offset(2000, 1575),
-        width: 170,
-        height: 115,
-      );
-    }
-    if (has('bag') || has('purse')) {
-      return Rect.fromCenter(
-        center: const Offset(2110, 1900),
-        width: 175,
-        height: 190,
-      );
-    }
-    if (has('scarf')) {
-      return Rect.fromCenter(
-        center: const Offset(2000, 1710),
-        width: 220,
-        height: 150,
+        center: const Offset(2000, 1930),
+        width: 255,
+        height: 500,
       );
     }
     return switch (zone) {
-      _CanvasZone.accessories => Rect.fromCenter(
-        center: const Offset(2000, 1740),
-        width: 150,
-        height: 150,
-      ),
-      _CanvasZone.shoes => Rect.fromCenter(
-        center: const Offset(2000, 1950),
-        width: 200,
-        height: 200,
-      ),
-      _CanvasZone.bottoms => Rect.fromCenter(
-        center: const Offset(2000, 1950),
-        width: 200,
-        height: 200,
-      ),
       _CanvasZone.tops => Rect.fromCenter(
-        center: const Offset(2000, 1950),
-        width: 200,
-        height: 200,
+        center: const Offset(2000, 1780),
+        width: 235,
+        height: 265,
       ),
       _CanvasZone.outerwear => Rect.fromCenter(
-        center: const Offset(2000, 1950),
-        width: 200,
-        height: 200,
+        center: const Offset(2000, 1800),
+        width: 255,
+        height: 300,
+      ),
+      _CanvasZone.bottoms => Rect.fromCenter(
+        center: const Offset(2000, 2060),
+        width: 230,
+        height: 285,
+      ),
+      _CanvasZone.shoes => Rect.fromCenter(
+        center: const Offset(2000, 2290),
+        width: 230,
+        height: 120,
+      ),
+      _CanvasZone.accessories => Rect.fromCenter(
+        center: const Offset(2000, 1760),
+        width: 145,
+        height: 145,
       ),
     };
   }
@@ -657,7 +517,9 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
   void _focusMannequin() {
     final size = _viewportSize;
     if (size == null) return;
-    const scale = 1.0;
+    // Leave comfortable head-and-feet margins on phone screens rather than
+    // fitting the mannequin edge-to-edge.
+    const scale = .72;
     final center = size.center(Offset.zero);
     final sceneCenter = _dummyRect.center;
     final matrix = Matrix4.diagonal3Values(scale, scale, 1)..setTranslationRaw(
@@ -819,14 +681,7 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
         padding: const EdgeInsets.all(6),
         child: Column(
           children: [
-            Expanded(
-              child: Image.network(
-                item.cloudinaryUrl,
-                fit: BoxFit.contain,
-                errorBuilder:
-                    (_, _, _) => const Icon(Icons.image_not_supported),
-              ),
-            ),
+            Expanded(child: CachedWardrobeImage(url: item.cloudinaryUrl)),
             const SizedBox(height: 4),
             Text(
               item.itemName ?? item.category,
@@ -945,12 +800,7 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
             ),
             child: Padding(
               padding: const EdgeInsets.all(3),
-              child: Image.network(
-                item.cloudinaryUrl,
-                fit: BoxFit.contain,
-                errorBuilder:
-                    (_, _, _) => const Icon(Icons.image_not_supported),
-              ),
+              child: CachedWardrobeImage(url: item.cloudinaryUrl),
             ),
           ),
         ),

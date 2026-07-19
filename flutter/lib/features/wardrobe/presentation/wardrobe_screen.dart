@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../../core/widgets/cached_wardrobe_image.dart';
 import '../data/wardrobe_repository.dart';
 import '../domain/clothing_item_draft.dart';
 import 'upload_screen.dart';
@@ -340,13 +341,8 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
                                   Expanded(
                                     child: Padding(
                                       padding: const EdgeInsets.all(10),
-                                      child: Image.network(
-                                        item.cloudinaryUrl,
-                                        fit: BoxFit.contain,
-                                        errorBuilder:
-                                            (_, _, _) => const Icon(
-                                              Icons.image_not_supported,
-                                            ),
+                                      child: CachedWardrobeImage(
+                                        url: item.cloudinaryUrl,
                                       ),
                                     ),
                                   ),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../../core/widgets/cached_wardrobe_image.dart';
 import '../../creative/presentation/creative_space_screen.dart';
 import '../data/outfit_repository.dart';
 import '../domain/saved_outfit.dart';
@@ -208,10 +209,7 @@ class _OutfitDetailScreenState extends State<OutfitDetailScreen> {
                           leading: SizedBox(
                             width: 56,
                             height: 56,
-                            child: Image.network(
-                              item.cloudinaryUrl,
-                              fit: BoxFit.contain,
-                            ),
+                            child: CachedWardrobeImage(url: item.cloudinaryUrl),
                           ),
                           title: Text(item.itemName ?? item.category),
                           subtitle: Text(
