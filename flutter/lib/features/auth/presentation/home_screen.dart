@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../calendar/presentation/calendar_screen.dart';
+import '../../creative/presentation/creative_space_screen.dart';
 import '../../outfits/presentation/outfits_screen.dart';
 import '../../wardrobe/presentation/wardrobe_screen.dart';
 import 'profile_screen.dart';
@@ -70,6 +71,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         children: [
           WardrobeScreen(email: widget.email, token: widget.token),
           OutfitsScreen(token: widget.token),
+          CreativeSpaceScreen(token: widget.token),
           CalendarScreen(token: widget.token),
           ProfileScreen(email: widget.email),
         ],
@@ -87,6 +89,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             icon: Icon(Icons.collections_bookmark_outlined),
             selectedIcon: Icon(Icons.collections_bookmark),
             label: 'Outfits',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.auto_awesome_mosaic_outlined),
+            selectedIcon: Icon(Icons.auto_awesome_mosaic),
+            label: 'Studio',
           ),
           NavigationDestination(
             icon: Icon(Icons.calendar_month_outlined),

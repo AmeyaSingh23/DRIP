@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../creative/presentation/creative_space_screen.dart';
 import '../data/outfit_repository.dart';
 import '../domain/saved_outfit.dart';
 
@@ -111,6 +112,22 @@ class _OutfitDetailScreenState extends State<OutfitDetailScreen> {
           title: Text(outfit?.name ?? 'Outfit'),
           automaticallyImplyLeading: !_deleting,
           actions: [
+            if (outfit != null)
+              IconButton(
+                onPressed:
+                    _deleting
+                        ? null
+                        : () => context.push(
+                          '/creative',
+                          extra: CreativeRouteArgs(
+                            token: widget.token,
+                            initialItems: outfit.items,
+                            startCollapsed: true,
+                          ),
+                        ),
+                icon: const Icon(Icons.edit_outlined),
+                tooltip: 'Style on canvas',
+              ),
             if (outfit != null)
               IconButton(
                 onPressed: _deleting ? null : _delete,

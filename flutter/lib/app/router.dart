@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/auth/presentation/auth_gate.dart';
+import '../features/creative/presentation/creative_space_screen.dart';
 import '../features/outfits/presentation/outfit_generator_screen.dart';
 import '../features/outfits/presentation/outfit_detail_screen.dart';
 import '../features/outfits/presentation/outfits_screen.dart';
@@ -14,6 +15,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     initialLocation: '/',
     routes: [
       GoRoute(path: '/', builder: (context, state) => const AuthGate()),
+      GoRoute(
+        path: '/creative',
+        builder: (context, state) {
+          final args = state.extra! as CreativeRouteArgs;
+          return CreativeSpaceScreen(
+            token: args.token,
+            initialItems: args.initialItems,
+            startCollapsed: args.startCollapsed,
+          );
+        },
+      ),
       GoRoute(
         path: '/wardrobe/upload',
         builder: (context, state) {

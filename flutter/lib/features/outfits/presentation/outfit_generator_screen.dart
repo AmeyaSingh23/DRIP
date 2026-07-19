@@ -1,8 +1,10 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../creative/presentation/creative_space_screen.dart';
 import '../data/outfit_repository.dart';
 import '../domain/outfit_preview.dart';
 
@@ -214,10 +216,34 @@ class _OutfitGeneratorScreenState extends State<OutfitGeneratorScreen> {
                         .toList(),
               ),
               const SizedBox(height: 20),
-              FilledButton.icon(
-                onPressed: busy ? null : _save,
-                icon: const Icon(Icons.bookmark_add_outlined),
-                label: Text(_saving ? 'Saving...' : 'Save outfit'),
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: busy ? null : _save,
+                      icon: const Icon(Icons.bookmark_add_outlined),
+                      label: Text(_saving ? 'Saving...' : 'Save outfit'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed:
+                          busy
+                              ? null
+                              : () => context.push(
+                                '/creative',
+                                extra: CreativeRouteArgs(
+                                  token: widget.token,
+                                  initialItems: _preview!.items,
+                                  startCollapsed: true,
+                                ),
+                              ),
+                      icon: const Icon(Icons.palette_outlined),
+                      label: const Text('Style on canvas'),
+                    ),
+                  ),
+                ],
               ),
             ],
           ],
