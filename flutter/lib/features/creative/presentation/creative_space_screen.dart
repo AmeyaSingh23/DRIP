@@ -9,11 +9,17 @@ final class CreativeRouteArgs {
   const CreativeRouteArgs({
     required this.token,
     this.initialItems,
+    this.initialName,
+    this.initialOccasion,
+    this.editingOutfitId,
     this.startCollapsed,
   });
 
   final String token;
   final List<ClothingItemDraft>? initialItems;
+  final String? initialName;
+  final String? initialOccasion;
+  final String? editingOutfitId;
   final bool? startCollapsed;
 }
 
@@ -23,12 +29,18 @@ class CreativeSpaceScreen extends StatefulWidget {
   const CreativeSpaceScreen({
     required this.token,
     this.initialItems,
+    this.initialName,
+    this.initialOccasion,
+    this.editingOutfitId,
     this.startCollapsed,
     super.key,
   });
 
   final String token;
   final List<ClothingItemDraft>? initialItems;
+  final String? initialName;
+  final String? initialOccasion;
+  final String? editingOutfitId;
   final bool? startCollapsed;
 
   @override
@@ -46,29 +58,64 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
     'Accessories',
     'Uniform',
   ];
-  static const _canvasSize = Size(680, 960);
-  static const _dummyRect = Rect.fromLTWH(160, 95, 360, 710);
-  static const _accessoriesRect = Rect.fromLTWH(85, 105, 510, 690);
-  static const _shoesRect = Rect.fromLTWH(190, 748, 300, 135);
-  static const _bottomsRect = Rect.fromLTWH(168, 448, 344, 330);
-  static const _topsRect = Rect.fromLTWH(180, 210, 320, 300);
-  static const _outerwearRect = Rect.fromLTWH(145, 185, 390, 350);
+  static const _planeSize = Size(4000, 4000);
 
   final _repository = CreativeRepository();
   final _transform = TransformationController();
   final Map<_CanvasZone, ClothingItemDraft> _placed = {};
+  final Map<_CanvasZone, Offset> _itemOffsets = {};
   List<ClothingItemDraft> _items = const [];
   String _selectedCategory = 'All';
+  String _outfitName = 'Styled outfit';
+  String? _occasion;
+  String? _saveIdempotencyKey;
+  _CanvasZone? _selectedZone;
+  Offset _longPressStartOffset = Offset.zero;
   bool _sidebarCollapsed = false;
   bool _loading = true;
   bool _saving = false;
+  bool _initialViewApplied = false;
+  Size? _viewportSize;
   String? _error;
   int _loadEpoch = 0;
+
+  Rect get _dummyRect => Rect.fromCenter(
+    center: const Offset(2000, 1950),
+    width: 360,
+    height: 760,
+  );
+  Rect get _accessoriesRect => Rect.fromCenter(
+    center: const Offset(2000, 1940),
+    width: 300,
+    height: 620,
+  );
+  Rect get _shoesRect =>
+      Rect.fromCenter(center: const Offset(2000, 2290), width: 190, height: 95);
+  Rect get _bottomsRect => Rect.fromCenter(
+    center: const Offset(2000, 2040),
+    width: 220,
+    height: 265,
+  );
+  Rect get _topsRect => Rect.fromCenter(
+    center: const Offset(2000, 1775),
+    width: 220,
+    height: 265,
+  );
+  Rect get _outerwearRect => Rect.fromCenter(
+    center: const Offset(2000, 1770),
+    width: 255,
+    height: 290,
+  );
 
   @override
   void initState() {
     super.initState();
     _sidebarCollapsed = widget.startCollapsed ?? widget.initialItems != null;
+    _outfitName =
+        widget.initialName?.trim().isNotEmpty == true
+            ? widget.initialName!.trim()
+            : _outfitName;
+    _occasion = widget.initialOccasion;
     for (final item in widget.initialItems ?? const <ClothingItemDraft>[]) {
       _autoPlace(item);
     }
@@ -133,13 +180,17 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
         : fallback;
   }
 
-  _CanvasZone _zoneFor(ClothingItemDraft item) => switch (item.category) {
-    'Tops' || 'Uniform' => _CanvasZone.tops,
-    'Outerwear' => _CanvasZone.outerwear,
-    'Bottoms' || 'Dresses' => _CanvasZone.bottoms,
-    'Shoes' => _CanvasZone.shoes,
-    _ => _CanvasZone.accessories,
-  };
+  _CanvasZone _zoneFor(ClothingItemDraft item) {
+    if (item.category == 'Tops' || item.category == 'Uniform') {
+      return _CanvasZone.tops;
+    }
+    if (item.category == 'Outerwear') return _CanvasZone.outerwear;
+    if (item.category == 'Bottoms' || item.category == 'Dresses') {
+      return _CanvasZone.bottoms;
+    }
+    if (item.category == 'Shoes') return _CanvasZone.shoes;
+    return _CanvasZone.accessories;
+  }
 
   bool _canDropOn(ClothingItemDraft item, _CanvasZone zone) {
     if (item.category == 'Dresses') {
@@ -148,32 +199,93 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
     return _zoneFor(item) == zone;
   }
 
+  Rect _zoneRect(_CanvasZone zone) => switch (zone) {
+    _CanvasZone.accessories => _accessoriesRect,
+    _CanvasZone.shoes => _shoesRect,
+    _CanvasZone.bottoms => _bottomsRect,
+    _CanvasZone.tops => _topsRect,
+    _CanvasZone.outerwear => _outerwearRect,
+  };
+
   void _autoPlace(ClothingItemDraft item) {
     if (item.category == 'Dresses') {
       _placed[_CanvasZone.tops] = item;
       _placed[_CanvasZone.bottoms] = item;
+      _itemOffsets[_CanvasZone.tops] = Offset.zero;
+      _itemOffsets[_CanvasZone.bottoms] = Offset.zero;
       return;
     }
-    _placed[_zoneFor(item)] = item;
+    final zone = _zoneFor(item);
+    _placed[zone] = item;
+    _itemOffsets[zone] = Offset.zero;
   }
 
   void _place(ClothingItemDraft item, _CanvasZone zone) {
     setState(() {
+      _saveIdempotencyKey = null;
       if (item.category == 'Dresses') {
         _autoPlace(item);
       } else {
         _placed[zone] = item;
+        _itemOffsets[zone] = Offset.zero;
       }
     });
+  }
+
+  void _startMove(_CanvasZone zone) {
+    setState(() {
+      _selectedZone = zone;
+      _longPressStartOffset = _itemOffsets[zone] ?? Offset.zero;
+    });
+  }
+
+  void _moveItem(_CanvasZone zone, LongPressMoveUpdateDetails details) {
+    final scale = _transform.value.getMaxScaleOnAxis();
+    setState(() {
+      _saveIdempotencyKey = null;
+      _selectedZone = zone;
+      _itemOffsets[zone] =
+          _longPressStartOffset + details.offsetFromOrigin / scale;
+    });
+  }
+
+  void _nudge(Offset delta) {
+    final zone = _selectedZone;
+    if (zone == null || !_placed.containsKey(zone)) return;
+    setState(() {
+      _saveIdempotencyKey = null;
+      _itemOffsets[zone] = (_itemOffsets[zone] ?? Offset.zero) + delta;
+    });
+  }
+
+  void _deselectIfOutside(PointerDownEvent event) {
+    final zone = _selectedZone;
+    if (zone == null) return;
+    final scenePoint = _transform.toScene(event.localPosition);
+    final itemBounds = _zoneRect(zone).shift(_itemOffsets[zone] ?? Offset.zero);
+    if (!itemBounds.contains(scenePoint)) {
+      setState(() => _selectedZone = null);
+    }
   }
 
   void _remove(_CanvasZone zone) {
     final item = _placed[zone];
     setState(() {
+      _saveIdempotencyKey = null;
       if (item == null) {
         _placed.remove(zone);
+        _itemOffsets.remove(zone);
       } else {
-        _placed.removeWhere((_, placed) => placed.id == item.id);
+        final matching =
+            _placed.entries
+                .where((entry) => entry.value.id == item.id)
+                .map((entry) => entry.key)
+                .toList();
+        for (final matchingZone in matching) {
+          _placed.remove(matchingZone);
+          _itemOffsets.remove(matchingZone);
+        }
+        if (matching.contains(_selectedZone)) _selectedZone = null;
       }
     });
   }
@@ -195,19 +307,40 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
       );
       return;
     }
-    setState(() => _saving = true);
+    final details = await showDialog<_OutfitDetails>(
+      context: context,
+      builder:
+          (_) => _OutfitDetailsDialog(
+            initialName: _outfitName,
+            initialOccasion: _occasion,
+          ),
+    );
+    if (details == null || !mounted) return;
+    setState(() {
+      _outfitName = details.name;
+      _occasion = details.occasion;
+      _saving = true;
+    });
     try {
       await _repository.saveOutfit(
         token: widget.token,
         items: items,
-        idempotencyKey: const Uuid().v4(),
+        name: _outfitName,
+        occasion: _occasion,
+        outfitId: widget.editingOutfitId,
+        idempotencyKey: _saveIdempotencyKey ??= const Uuid().v4(),
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Outfit saved to your wardrobe history.'),
+          SnackBar(
+            content: Text(
+              widget.editingOutfitId == null
+                  ? 'Outfit saved to your wardrobe history.'
+                  : 'Outfit changes saved.',
+            ),
           ),
         );
+        _saveIdempotencyKey = null;
       }
     } on DioException catch (error) {
       if (mounted) {
@@ -220,9 +353,39 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
     }
   }
 
-  void _clearAll() => setState(_placed.clear);
+  void _clearAll() {
+    setState(() {
+      _saveIdempotencyKey = null;
+      _placed.clear();
+      _itemOffsets.clear();
+      _selectedZone = null;
+    });
+  }
 
-  void _resetCanvasView() => _transform.value = Matrix4.identity();
+  void _scheduleInitialView(Size size) {
+    if (_initialViewApplied || size.isEmpty) return;
+    _viewportSize = size;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_initialViewApplied) {
+        _focusMannequin();
+        _initialViewApplied = true;
+      }
+    });
+  }
+
+  void _focusMannequin() {
+    final size = _viewportSize;
+    if (size == null) return;
+    const scale = 1.0;
+    final center = size.center(Offset.zero);
+    final sceneCenter = _dummyRect.center;
+    final matrix = Matrix4.diagonal3Values(scale, scale, 1)..setTranslationRaw(
+      center.dx - sceneCenter.dx * scale,
+      center.dy - sceneCenter.dy * scale,
+      0,
+    );
+    _transform.value = matrix;
+  }
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -230,9 +393,9 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
       title: const Text('Studio'),
       actions: [
         IconButton(
-          tooltip: 'Reset canvas view',
-          onPressed: _resetCanvasView,
-          icon: const Icon(Icons.zoom_out_map),
+          tooltip: 'Focus mannequin',
+          onPressed: _focusMannequin,
+          icon: const Icon(Icons.center_focus_strong),
         ),
       ],
     ),
@@ -259,7 +422,13 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
                     child: FilledButton.icon(
                       onPressed: _saving ? null : _save,
                       icon: const Icon(Icons.bookmark_add_outlined),
-                      label: Text(_saving ? 'Saving...' : 'Save as outfit'),
+                      label: Text(
+                        _saving
+                            ? 'Saving...'
+                            : widget.editingOutfitId == null
+                            ? 'Save as outfit'
+                            : 'Save changes',
+                      ),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -280,7 +449,7 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
   Widget _sidebar() => AnimatedContainer(
     duration: const Duration(milliseconds: 250),
     curve: Curves.easeInOut,
-    width: _sidebarCollapsed ? 36 : 200,
+    width: _sidebarCollapsed ? 36 : 116,
     color: Theme.of(context).colorScheme.surface,
     child:
         _sidebarCollapsed
@@ -294,23 +463,13 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
             )
             : Column(
               children: [
-                Row(
-                  children: [
-                    const Expanded(
-                      child: Padding(
-                        padding: EdgeInsets.only(left: 12),
-                        child: Text(
-                          'Wardrobe',
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'Hide wardrobe',
-                      onPressed: () => setState(() => _sidebarCollapsed = true),
-                      icon: const Icon(Icons.chevron_left),
-                    ),
-                  ],
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: IconButton(
+                    tooltip: 'Hide wardrobe',
+                    onPressed: () => setState(() => _sidebarCollapsed = true),
+                    icon: const Icon(Icons.chevron_left),
+                  ),
                 ),
                 SizedBox(
                   height: 42,
@@ -331,40 +490,33 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Expanded(child: _itemGrid()),
+                Expanded(child: _itemList()),
               ],
             ),
   );
 
-  Widget _itemGrid() {
+  Widget _itemList() {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) {
       return Center(
         child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(_error!, textAlign: TextAlign.center),
-              const SizedBox(height: 8),
-              TextButton(onPressed: _loadWardrobe, child: const Text('Retry')),
-            ],
+          padding: const EdgeInsets.all(8),
+          child: TextButton(
+            onPressed: _loadWardrobe,
+            child: const Text('Retry'),
           ),
         ),
       );
     }
     final items = _filteredItems;
     if (items.isEmpty) return const Center(child: Text('No items'));
-    return GridView.builder(
-      padding: const EdgeInsets.all(8),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-        childAspectRatio: .72,
-      ),
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
       itemCount: items.length,
-      itemBuilder: (context, index) => _draggableItem(items[index]),
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
+      itemBuilder:
+          (context, index) =>
+              SizedBox(height: 126, child: _draggableItem(items[index])),
     );
   }
 
@@ -403,40 +555,53 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
       data: item,
       feedback: Opacity(
         opacity: .72,
-        child: SizedBox(width: 96, height: 128, child: thumbnail),
+        child: SizedBox(width: 96, height: 126, child: thumbnail),
       ),
       childWhenDragging: Opacity(opacity: .35, child: thumbnail),
       child: thumbnail,
     );
   }
 
-  Widget _canvas() => Container(
-    color: const Color(0xFFFAFAF8),
-    padding: const EdgeInsets.all(16),
-    child: ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: InteractiveViewer(
-        transformationController: _transform,
-        alignment: Alignment.center,
-        minScale: .35,
-        maxScale: 3.2,
-        boundaryMargin: const EdgeInsets.all(500),
-        constrained: false,
-        child: SizedBox(
-          width: _canvasSize.width,
-          height: _canvasSize.height,
-          child: _canvasStack(),
+  Widget _canvas() => LayoutBuilder(
+    builder: (context, constraints) {
+      _scheduleInitialView(Size(constraints.maxWidth, constraints.maxHeight));
+      return Container(
+        color: const Color(0xFFFAFAF8),
+        padding: const EdgeInsets.all(16),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: Listener(
+                  onPointerDown: _deselectIfOutside,
+                  child: InteractiveViewer(
+                    transformationController: _transform,
+                    minScale: .28,
+                    maxScale: 3.5,
+                    boundaryMargin: const EdgeInsets.all(900),
+                    constrained: false,
+                    child: SizedBox(
+                      width: _planeSize.width,
+                      height: _planeSize.height,
+                      child: _canvasStack(),
+                    ),
+                  ),
+                ),
+              ),
+              if (_selectedZone != null && _placed.containsKey(_selectedZone))
+                Positioned(right: 12, bottom: 12, child: _nudgeControls()),
+            ],
+          ),
         ),
-      ),
-    ),
+      );
+    },
   );
 
   Widget _canvasStack() => Stack(
     clipBehavior: Clip.none,
     children: [
       Positioned.fill(child: CustomPaint(painter: _GridPainter())),
-      // This target sits behind the mannequin. It catches blank-canvas drops
-      // and assigns them based on category without blocking body-zone drops.
       Positioned.fill(
         child: DragTarget<ClothingItemDraft>(
           onWillAcceptWithDetails: (_) => true,
@@ -458,26 +623,26 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
       ),
       Positioned.fromRect(
         rect: _dummyRect,
-        child: const IgnorePointer(
-          child: Image(
-            image: AssetImage('assets/images/female_dummy.png'),
-            fit: BoxFit.contain,
-          ),
-        ),
+        child: IgnorePointer(child: _croppedDummy()),
       ),
-      _placedOnly(_CanvasZone.accessories, _accessoriesRect),
-      _dropZone(_CanvasZone.shoes, _shoesRect),
-      _dropZone(_CanvasZone.bottoms, _bottomsRect),
-      _dropZone(_CanvasZone.tops, _topsRect),
-      _dropZone(_CanvasZone.outerwear, _outerwearRect),
+      _dropZone(_CanvasZone.shoes),
+      _dropZone(_CanvasZone.bottoms),
+      _dropZone(_CanvasZone.tops),
+      _dropZone(_CanvasZone.outerwear),
+      _placedLayer(_CanvasZone.accessories),
+      _placedLayer(_CanvasZone.shoes),
+      _placedLayer(_CanvasZone.bottoms),
+      _placedLayer(_CanvasZone.tops),
+      _placedLayer(_CanvasZone.outerwear),
+      ..._CanvasZone.values.where(_placed.containsKey).map(_removeButton),
     ],
   );
 
-  Widget _placedOnly(_CanvasZone zone, Rect rect) =>
-      Positioned.fromRect(rect: rect, child: _placedItem(zone));
+  Widget _placedLayer(_CanvasZone zone) =>
+      Positioned.fromRect(rect: _zoneRect(zone), child: _placedItem(zone));
 
-  Widget _dropZone(_CanvasZone zone, Rect rect) => Positioned.fromRect(
-    rect: rect,
+  Widget _dropZone(_CanvasZone zone) => Positioned.fromRect(
+    rect: _zoneRect(zone),
     child: DragTarget<ClothingItemDraft>(
       onWillAcceptWithDetails: (details) => _canDropOn(details.data, zone),
       onAcceptWithDetails: (details) => _place(details.data, zone),
@@ -506,7 +671,7 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
                         ),
                       ],
             ),
-            child: _placedItem(zone),
+            child: const SizedBox.expand(),
           ),
     ),
   );
@@ -514,42 +679,120 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
   Widget _placedItem(_CanvasZone zone) {
     final item = _placed[zone];
     if (item == null) return const SizedBox.expand();
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(4),
-          child: Image.network(
-            item.cloudinaryUrl,
-            fit: BoxFit.contain,
-            errorBuilder: (_, _, _) => const Icon(Icons.image_not_supported),
+    return Transform.translate(
+      offset: _itemOffsets[zone] ?? Offset.zero,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onLongPressStart: (_) => _startMove(zone),
+        onLongPressMoveUpdate: (details) => _moveItem(zone, details),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            border:
+                _selectedZone == zone
+                    ? Border.all(
+                      color: Theme.of(context).colorScheme.primary,
+                      width: 3,
+                    )
+                    : null,
+            borderRadius: BorderRadius.circular(12),
           ),
-        ),
-        Positioned(
-          top: 2,
-          right: 2,
-          child: Material(
-            color: Colors.black54,
-            shape: const CircleBorder(),
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: () => _remove(zone),
-              child: const Padding(
-                padding: EdgeInsets.all(4),
-                child: Icon(Icons.close, size: 16, color: Colors.white),
-              ),
+          child: Padding(
+            padding: const EdgeInsets.all(3),
+            child: Image.network(
+              item.cloudinaryUrl,
+              fit: BoxFit.contain,
+              errorBuilder: (_, _, _) => const Icon(Icons.image_not_supported),
             ),
           ),
         ),
-      ],
+      ),
     );
   }
+
+  Widget _removeButton(_CanvasZone zone) {
+    final rect = _zoneRect(zone);
+    final offset = _itemOffsets[zone] ?? Offset.zero;
+    return Positioned(
+      left: rect.right + offset.dx - 20,
+      top: rect.top + offset.dy - 12,
+      child: Material(
+        color: Colors.black54,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: () => _remove(zone),
+          child: const Padding(
+            padding: EdgeInsets.all(5),
+            child: Icon(Icons.close, size: 17, color: Colors.white),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // The supplied PNG has a 1408x768 transparent canvas around a narrow,
+  // centred figure. Crop that canvas at render time so the mannequin's visible
+  // body fills its logical body rectangle without altering the user asset.
+  Widget _croppedDummy() => LayoutBuilder(
+    builder:
+        (context, constraints) => ClipRect(
+          child: OverflowBox(
+            alignment: Alignment.center,
+            maxHeight: constraints.maxHeight / .875,
+            child: Image.asset(
+              'assets/images/female_dummy.png',
+              height: constraints.maxHeight / .875,
+              fit: BoxFit.fitHeight,
+            ),
+          ),
+        ),
+  );
+
+  Widget _nudgeControls() => Material(
+    color: Theme.of(context).colorScheme.surface.withValues(alpha: .94),
+    elevation: 4,
+    borderRadius: BorderRadius.circular(12),
+    child: Padding(
+      padding: const EdgeInsets.all(4),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('Move', style: TextStyle(fontSize: 11)),
+          IconButton(
+            tooltip: 'Move up',
+            onPressed: () => _nudge(const Offset(0, -8)),
+            icon: const Icon(Icons.keyboard_arrow_up),
+          ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                tooltip: 'Move left',
+                onPressed: () => _nudge(const Offset(-8, 0)),
+                icon: const Icon(Icons.keyboard_arrow_left),
+              ),
+              IconButton(
+                tooltip: 'Move right',
+                onPressed: () => _nudge(const Offset(8, 0)),
+                icon: const Icon(Icons.keyboard_arrow_right),
+              ),
+            ],
+          ),
+          IconButton(
+            tooltip: 'Move down',
+            onPressed: () => _nudge(const Offset(0, 8)),
+            icon: const Icon(Icons.keyboard_arrow_down),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _GridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    const spacing = 32.0;
+    const spacing = 40.0;
     final paint =
         Paint()
           ..color = const Color(0xFFDDD9E5)
@@ -564,4 +807,86 @@ class _GridPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _OutfitDetails {
+  const _OutfitDetails({required this.name, this.occasion});
+
+  final String name;
+  final String? occasion;
+}
+
+class _OutfitDetailsDialog extends StatefulWidget {
+  const _OutfitDetailsDialog({required this.initialName, this.initialOccasion});
+
+  final String initialName;
+  final String? initialOccasion;
+
+  @override
+  State<_OutfitDetailsDialog> createState() => _OutfitDetailsDialogState();
+}
+
+class _OutfitDetailsDialogState extends State<_OutfitDetailsDialog> {
+  late final TextEditingController _name;
+  late final TextEditingController _occasion;
+
+  @override
+  void initState() {
+    super.initState();
+    _name = TextEditingController(text: widget.initialName);
+    _occasion = TextEditingController(text: widget.initialOccasion ?? '');
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _occasion.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Save outfit'),
+    content: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TextField(
+          controller: _name,
+          autofocus: true,
+          maxLength: 120,
+          decoration: const InputDecoration(labelText: 'Outfit name'),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _occasion,
+          maxLength: 50,
+          decoration: const InputDecoration(
+            labelText: 'Occasion (optional)',
+            hintText: 'College, dinner, date night...',
+          ),
+        ),
+      ],
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        onPressed: () {
+          final name = _name.text.trim();
+          if (name.isEmpty) return;
+          final occasion = _occasion.text.trim();
+          Navigator.pop(
+            context,
+            _OutfitDetails(
+              name: name,
+              occasion: occasion.isEmpty ? null : occasion,
+            ),
+          );
+        },
+        child: const Text('Save'),
+      ),
+    ],
+  );
 }

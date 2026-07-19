@@ -75,6 +75,25 @@ final class OutfitRepository {
     return SavedOutfit.fromJson(response.data!);
   }
 
+  Future<SavedOutfit> update({
+    required String token,
+    required String outfitId,
+    String? name,
+    String? occasion,
+    List<String>? itemIds,
+  }) async {
+    final response = await _client.dio.patch<Map<String, dynamic>>(
+      '/api/v1/outfits/$outfitId',
+      data: {
+        'name': name,
+        'occasion': occasion,
+        if (itemIds != null) 'item_ids': itemIds,
+      },
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+    return SavedOutfit.fromJson(response.data!);
+  }
+
   Future<void> delete({required String token, required String outfitId}) =>
       _client.dio.delete<void>(
         '/api/v1/outfits/$outfitId',

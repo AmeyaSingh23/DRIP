@@ -20,6 +20,7 @@ class _OutfitsScreenState extends State<OutfitsScreen> {
   List<SavedOutfit> _outfits = const [];
   String? _error;
   bool _loading = true;
+  String? _deletingId;
   int _loadEpoch = 0;
 
   @override
@@ -54,6 +55,52 @@ class _OutfitsScreenState extends State<OutfitsScreen> {
       if (mounted && requestEpoch == _loadEpoch) {
         setState(() => _loading = false);
       }
+    }
+  }
+
+  Future<void> _delete(SavedOutfit outfit) async {
+    if (_deletingId != null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Delete outfit?'),
+            content: Text(
+              'Delete ${outfit.name ?? 'this outfit'}? Your wardrobe items stay untouched.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                child: const Text('Delete'),
+              ),
+            ],
+          ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _deletingId = outfit.id);
+    try {
+      await _repository.delete(token: widget.token, outfitId: outfit.id);
+      await _load();
+    } on DioException catch (error) {
+      if (mounted) {
+        final data = error.response?.data;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              data is Map && data['detail'] is String
+                  ? data['detail'] as String
+                  : 'Could not delete outfit. Please try again.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _deletingId = null);
     }
   }
 
@@ -99,12 +146,14 @@ class _OutfitsScreenState extends State<OutfitsScreen> {
                 itemBuilder: (context, index) {
                   final outfit = _outfits[index];
                   return InkWell(
+                    onLongPress:
+                        _deletingId == null ? () => _delete(outfit) : null,
                     onTap: () async {
-                      final deleted = await context.push<bool>(
+                      await context.push<bool>(
                         '/outfits/${outfit.id}',
                         extra: widget.token,
                       );
-                      if (deleted == true) await _load();
+                      if (mounted) await _load();
                     },
                     borderRadius: BorderRadius.circular(12),
                     child: Card(

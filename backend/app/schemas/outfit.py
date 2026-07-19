@@ -34,6 +34,19 @@ class OutfitCreate(BaseModel):
         return values
 
 
+class OutfitUpdate(BaseModel):
+    name: str | None = Field(default=None, max_length=120)
+    occasion: str | None = Field(default=None, max_length=50)
+    item_ids: list[UUID] | None = Field(default=None, min_length=1, max_length=8)
+
+    @field_validator("item_ids")
+    @classmethod
+    def unique_item_ids(cls, values: list[UUID] | None) -> list[UUID] | None:
+        if values is not None and len(set(values)) != len(values):
+            raise ValueError("An outfit cannot contain the same item more than once")
+        return values
+
+
 class OutfitResponse(BaseModel):
     id: UUID
     name: str | None = None

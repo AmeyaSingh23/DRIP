@@ -95,6 +95,38 @@ class _OutfitDetailScreenState extends State<OutfitDetailScreen> {
     }
   }
 
+  Future<void> _editDetails() async {
+    if (_deleting || _outfit == null) return;
+    final outfit = _outfit!;
+    final details = await showDialog<_OutfitDetails>(
+      context: context,
+      builder:
+          (_) => _OutfitDetailsDialog(
+            initialName: outfit.name,
+            initialOccasion: outfit.occasion,
+          ),
+    );
+    if (details == null || !mounted) return;
+    setState(() => _deleting = true);
+    try {
+      final updated = await _repository.update(
+        token: widget.token,
+        outfitId: outfit.id,
+        name: details.name,
+        occasion: details.occasion,
+      );
+      if (mounted) setState(() => _outfit = updated);
+    } on DioException catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not update outfit details.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _deleting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final outfit = _outfit;
@@ -114,18 +146,30 @@ class _OutfitDetailScreenState extends State<OutfitDetailScreen> {
           actions: [
             if (outfit != null)
               IconButton(
+                onPressed: _deleting ? null : _editDetails,
+                icon: const Icon(Icons.edit_note_outlined),
+                tooltip: 'Edit outfit details',
+              ),
+            if (outfit != null)
+              IconButton(
                 onPressed:
                     _deleting
                         ? null
-                        : () => context.push(
-                          '/creative',
-                          extra: CreativeRouteArgs(
-                            token: widget.token,
-                            initialItems: outfit.items,
-                            startCollapsed: true,
-                          ),
-                        ),
-                icon: const Icon(Icons.edit_outlined),
+                        : () async {
+                          await context.push(
+                            '/creative',
+                            extra: CreativeRouteArgs(
+                              token: widget.token,
+                              initialItems: outfit.items,
+                              initialName: outfit.name,
+                              initialOccasion: outfit.occasion,
+                              editingOutfitId: outfit.id,
+                              startCollapsed: true,
+                            ),
+                          );
+                          if (mounted) await _load();
+                        },
+                icon: const Icon(Icons.palette_outlined),
                 tooltip: 'Style on canvas',
               ),
             if (outfit != null)
@@ -184,4 +228,79 @@ class _OutfitDetailScreenState extends State<OutfitDetailScreen> {
       ),
     );
   }
+}
+
+class _OutfitDetails {
+  const _OutfitDetails({required this.name, this.occasion});
+  final String? name;
+  final String? occasion;
+}
+
+class _OutfitDetailsDialog extends StatefulWidget {
+  const _OutfitDetailsDialog({this.initialName, this.initialOccasion});
+  final String? initialName;
+  final String? initialOccasion;
+
+  @override
+  State<_OutfitDetailsDialog> createState() => _OutfitDetailsDialogState();
+}
+
+class _OutfitDetailsDialogState extends State<_OutfitDetailsDialog> {
+  late final TextEditingController _name;
+  late final TextEditingController _occasion;
+
+  @override
+  void initState() {
+    super.initState();
+    _name = TextEditingController(text: widget.initialName ?? '');
+    _occasion = TextEditingController(text: widget.initialOccasion ?? '');
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _occasion.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Edit outfit details'),
+    content: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TextField(
+          controller: _name,
+          maxLength: 120,
+          decoration: const InputDecoration(labelText: 'Outfit name'),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _occasion,
+          maxLength: 50,
+          decoration: const InputDecoration(labelText: 'Occasion (optional)'),
+        ),
+      ],
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        onPressed:
+            () => Navigator.pop(
+              context,
+              _OutfitDetails(
+                name: _name.text.trim().isEmpty ? null : _name.text.trim(),
+                occasion:
+                    _occasion.text.trim().isEmpty
+                        ? null
+                        : _occasion.text.trim(),
+              ),
+            ),
+        child: const Text('Save'),
+      ),
+    ],
+  );
 }

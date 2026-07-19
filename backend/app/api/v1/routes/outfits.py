@@ -3,7 +3,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db_session
@@ -11,7 +11,7 @@ from app.api.v1.routes.items import _response
 from app.db.models.clothing_item import ClothingItem
 from app.db.models.outfit import Outfit, OutfitItem
 from app.db.models.user import User
-from app.schemas.outfit import OutfitCreate, OutfitGenerateRequest, OutfitPreview, OutfitResponse
+from app.schemas.outfit import OutfitCreate, OutfitGenerateRequest, OutfitPreview, OutfitResponse, OutfitUpdate
 from app.services.gemini_outfit_generator import GeminiOutfitGenerator
 from app.services.idempotency import acquire_idempotency_lease, complete_idempotency_lease
 
@@ -108,6 +108,40 @@ async def get_outfit(
     session: AsyncSession = Depends(get_db_session),
 ) -> OutfitResponse:
     outfit, items = await _outfit_with_items(outfit_id, current_user.id, session)
+    return _outfit_response(outfit, items)
+
+
+@router.patch("/{outfit_id}", response_model=OutfitResponse)
+async def update_outfit(
+    outfit_id: UUID,
+    payload: OutfitUpdate,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+) -> OutfitResponse:
+    outfit, items = await _outfit_with_items(outfit_id, current_user.id, session)
+    values = payload.model_dump(exclude_unset=True)
+    if "name" in values:
+        name = values["name"]
+        outfit.name = name.strip() if isinstance(name, str) and name.strip() else None
+    if "occasion" in values:
+        occasion = values["occasion"]
+        outfit.occasion = occasion.strip() if isinstance(occasion, str) and occasion.strip() else None
+    if "item_ids" in values:
+        item_ids = values["item_ids"]
+        items = await _active_items(item_ids, current_user.id, session)
+        await session.execute(delete(OutfitItem).where(OutfitItem.outfit_id == outfit.id))
+        session.add_all(
+            [
+                OutfitItem(
+                    outfit_id=outfit.id,
+                    clothing_item_id=item_id,
+                    display_order=index,
+                )
+                for index, item_id in enumerate(item_ids)
+            ]
+        )
+    await session.commit()
+    await session.refresh(outfit)
     return _outfit_response(outfit, items)
 
 

@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_client.dart';
 import '../data/wardrobe_repository.dart';
@@ -313,6 +314,12 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                             contentPadding: EdgeInsets.zero,
                             leading: const Icon(Icons.checkroom_outlined),
                             title: Text(outfit.name ?? 'Untitled outfit'),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap:
+                                () => context.push(
+                                  '/outfits/${outfit.id}',
+                                  extra: widget.token,
+                                ),
                           ),
                         ),
                       const SizedBox(height: 24),

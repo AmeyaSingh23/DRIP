@@ -22,6 +22,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return CreativeSpaceScreen(
             token: args.token,
             initialItems: args.initialItems,
+            initialName: args.initialName,
+            initialOccasion: args.initialOccasion,
+            editingOutfitId: args.editingOutfitId,
             startCollapsed: args.startCollapsed,
           );
         },

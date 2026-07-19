@@ -236,6 +236,8 @@ class _OutfitGeneratorScreenState extends State<OutfitGeneratorScreen> {
                                 extra: CreativeRouteArgs(
                                   token: widget.token,
                                   initialItems: _preview!.items,
+                                  initialName: _preview!.name,
+                                  initialOccasion: _preview!.occasion,
                                   startCollapsed: true,
                                 ),
                               ),

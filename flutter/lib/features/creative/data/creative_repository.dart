@@ -20,6 +20,9 @@ final class CreativeRepository {
   Future<void> saveOutfit({
     required String token,
     required List<ClothingItemDraft> items,
+    required String name,
+    String? occasion,
+    String? outfitId,
     required String idempotencyKey,
   }) {
     final ids = <String>{};
@@ -27,15 +30,26 @@ final class CreativeRepository {
     for (final item in items) {
       if (ids.add(item.id)) distinctItems.add(item);
     }
+    final preview = OutfitPreview(
+      name: name,
+      occasion: occasion,
+      rationale: 'Created in Studio',
+      itemIds: distinctItems.map((item) => item.id).toList(),
+      items: distinctItems,
+    );
+    if (outfitId != null) {
+      return _outfits.update(
+        token: token,
+        outfitId: outfitId,
+        name: name,
+        occasion: occasion,
+        itemIds: preview.itemIds,
+      );
+    }
     return _outfits.save(
       token: token,
       idempotencyKey: idempotencyKey,
-      preview: OutfitPreview(
-        name: 'Styled outfit',
-        rationale: 'Created in Studio',
-        itemIds: distinctItems.map((item) => item.id).toList(),
-        items: distinctItems,
-      ),
+      preview: preview,
     );
   }
 }
