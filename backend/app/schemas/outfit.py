@@ -26,6 +26,7 @@ class OutfitItemLayout(BaseModel):
     zone: Literal["accessories", "shoes", "bottoms", "tops", "outerwear"]
     offset_x: float = Field(ge=-2000, le=2000)
     offset_y: float = Field(ge=-2000, le=2000)
+    scale: float = Field(default=1.0, ge=0.4, le=2.4)
 
 
 class OutfitCreate(BaseModel):

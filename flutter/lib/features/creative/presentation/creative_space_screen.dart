@@ -70,6 +70,7 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
   final _canvasKey = GlobalKey();
   final Map<_CanvasZone, ClothingItemDraft> _placed = {};
   final Map<_CanvasZone, Offset> _itemOffsets = {};
+  final Map<_CanvasZone, double> _itemScales = {};
   List<ClothingItemDraft> _items = const [];
   String _selectedCategory = 'All';
   String _outfitName = 'Styled outfit';
@@ -109,6 +110,7 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
       if (item == null || zone == null) continue;
       _placed[zone] = item;
       _itemOffsets[zone] = Offset(layout.offsetX, layout.offsetY);
+      _itemScales[zone] = layout.scale;
       restoredIds.add(item.id);
     }
     for (final item in initialItems) {
@@ -446,6 +448,7 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
     final zone = _zoneFor(item);
     _placed[zone] = item;
     _itemOffsets[zone] = Offset.zero;
+    _itemScales[zone] = 1;
   }
 
   // ignore: unused_element
@@ -454,6 +457,7 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
       _saveIdempotencyKey = null;
       _placed[zone] = item;
       _itemOffsets[zone] = Offset.zero;
+      _itemScales[zone] = 1;
     });
   }
 
@@ -468,6 +472,7 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
       _placed[zone] = item;
       _itemOffsets[zone] =
           scenePoint == null ? Offset.zero : scenePoint - rect.center;
+      _itemScales[zone] = 1;
     });
   }
 
@@ -497,14 +502,27 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
     });
   }
 
+  void _resizeSelected(double factor) {
+    final zone = _selectedZone;
+    if (zone == null || !_placed.containsKey(zone)) return;
+    setState(() {
+      _saveIdempotencyKey = null;
+      _itemScales[zone] =
+          ((_itemScales[zone] ?? 1) * factor).clamp(.4, 2.4).toDouble();
+    });
+  }
+
   void _deselectIfOutside(PointerDownEvent event) {
     final zone = _selectedZone;
     if (zone == null) return;
     final scenePoint = _transform.toScene(event.localPosition);
-    final itemBounds = _zoneRect(
-      zone,
-      _placed[zone],
-    ).shift(_itemOffsets[zone] ?? Offset.zero);
+    final baseRect = _zoneRect(zone, _placed[zone]);
+    final scale = _itemScales[zone] ?? 1;
+    final itemBounds = Rect.fromCenter(
+      center: baseRect.center + (_itemOffsets[zone] ?? Offset.zero),
+      width: baseRect.width * scale,
+      height: baseRect.height * scale,
+    );
     if (!itemBounds.contains(scenePoint)) {
       setState(() => _selectedZone = null);
     }
@@ -517,6 +535,7 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
       if (item == null) {
         _placed.remove(zone);
         _itemOffsets.remove(zone);
+        _itemScales.remove(zone);
       } else {
         final matching =
             _placed.entries
@@ -526,6 +545,7 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
         for (final matchingZone in matching) {
           _placed.remove(matchingZone);
           _itemOffsets.remove(matchingZone);
+          _itemScales.remove(matchingZone);
         }
         if (matching.contains(_selectedZone)) _selectedZone = null;
       }
@@ -552,6 +572,7 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
               zone: _layoutZone(zone),
               offsetX: offset.dx,
               offsetY: offset.dy,
+              scale: _itemScales[zone] ?? 1,
             );
           })
           .whereType<OutfitItemLayout>()
@@ -617,6 +638,7 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
       _saveIdempotencyKey = null;
       _placed.clear();
       _itemOffsets.clear();
+      _itemScales.clear();
       _selectedZone = null;
     });
   }
@@ -903,27 +925,32 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
     if (item == null) return const SizedBox.expand();
     return Transform.translate(
       offset: _itemOffsets[zone] ?? Offset.zero,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onLongPressStart: (_) => _startMove(zone),
-        onLongPressMoveUpdate: (details) => _moveItem(zone, details),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            border:
-                _selectedZone == zone
-                    ? Border.all(
-                      color: Theme.of(context).colorScheme.primary,
-                      width: 3,
-                    )
-                    : null,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(3),
-            child: Image.network(
-              item.cloudinaryUrl,
-              fit: BoxFit.contain,
-              errorBuilder: (_, _, _) => const Icon(Icons.image_not_supported),
+      child: Transform.scale(
+        alignment: Alignment.center,
+        scale: _itemScales[zone] ?? 1,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onLongPressStart: (_) => _startMove(zone),
+          onLongPressMoveUpdate: (details) => _moveItem(zone, details),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              border:
+                  _selectedZone == zone
+                      ? Border.all(
+                        color: Theme.of(context).colorScheme.primary,
+                        width: 3,
+                      )
+                      : null,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(3),
+              child: Image.network(
+                item.cloudinaryUrl,
+                fit: BoxFit.contain,
+                errorBuilder:
+                    (_, _, _) => const Icon(Icons.image_not_supported),
+              ),
             ),
           ),
         ),
@@ -934,9 +961,10 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
   Widget _removeButton(_CanvasZone zone) {
     final rect = _zoneRect(zone, _placed[zone]);
     final offset = _itemOffsets[zone] ?? Offset.zero;
+    final scale = _itemScales[zone] ?? 1;
     return Positioned(
-      left: rect.right + offset.dx - 20,
-      top: rect.top + offset.dy - 12,
+      left: rect.center.dx + offset.dx + rect.width * scale / 2 - 20,
+      top: rect.center.dy + offset.dy - rect.height * scale / 2 - 12,
       child: Material(
         color: Colors.black54,
         shape: const CircleBorder(),
@@ -979,7 +1007,22 @@ class _CreativeSpaceScreenState extends State<CreativeSpaceScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('Move', style: TextStyle(fontSize: 11)),
+          const Text('Adjust', style: TextStyle(fontSize: 11)),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                tooltip: 'Make smaller',
+                onPressed: () => _resizeSelected(.9),
+                icon: const Icon(Icons.remove_circle_outline),
+              ),
+              IconButton(
+                tooltip: 'Make larger',
+                onPressed: () => _resizeSelected(1.1),
+                icon: const Icon(Icons.add_circle_outline),
+              ),
+            ],
+          ),
           IconButton(
             tooltip: 'Move up',
             onPressed: () => _nudge(const Offset(0, -8)),
