@@ -7,10 +7,50 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from app.schemas.clothing_item import ClothingItemUploadResponse
 
 
+class OutfitLocation(BaseModel):
+    name: str = Field(min_length=1, max_length=160)
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+
+
+class OutfitWeatherContext(BaseModel):
+    location_name: str
+    local_time: datetime
+    time_of_day: Literal["morning", "afternoon", "evening", "night"]
+    condition: str
+    temperature_c: float
+    apparent_temperature_c: float
+    precipitation_probability: int | None = Field(default=None, ge=0, le=100)
+    precipitation_mm: float | None = Field(default=None, ge=0)
+    humidity_percent: int | None = Field(default=None, ge=0, le=100)
+    wind_speed_kmh: float | None = Field(default=None, ge=0)
+    wind_gusts_kmh: float | None = Field(default=None, ge=0)
+    considerations: list[str] = Field(default_factory=list)
+
+
+class OutfitWeatherContextRequest(BaseModel):
+    location: OutfitLocation
+    wear_at: datetime
+
+
+class OutfitWeatherContextResponse(BaseModel):
+    status: Literal["available", "unavailable"]
+    weather_context: OutfitWeatherContext | None = None
+
+
 class OutfitGenerateRequest(BaseModel):
     occasion: str | None = Field(default=None, max_length=50)
     style_notes: str | None = Field(default=None, max_length=240)
+    location: OutfitLocation | None = None
+    wear_at: datetime | None = None
+    # Kept for older clients. New clients use a trusted backend weather lookup.
     weather_summary: str | None = Field(default=None, max_length=120)
+
+    @model_validator(mode="after")
+    def weather_location_is_complete(self) -> "OutfitGenerateRequest":
+        if (self.location is None) != (self.wear_at is None):
+            raise ValueError("location and wear_at must be provided together")
+        return self
 
 
 class OutfitPreview(BaseModel):
@@ -19,6 +59,9 @@ class OutfitPreview(BaseModel):
     rationale: str = Field(max_length=400)
     item_ids: list[UUID] = Field(min_length=1, max_length=8)
     items: list[ClothingItemUploadResponse] = Field(default_factory=list)
+    weather_status: Literal["available", "unavailable", "not_requested"] = "not_requested"
+    weather_context: OutfitWeatherContext | None = None
+    is_quick_pick: bool = False
 
 
 class OutfitItemLayout(BaseModel):

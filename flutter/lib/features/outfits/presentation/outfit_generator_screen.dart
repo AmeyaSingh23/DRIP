@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
@@ -8,6 +9,10 @@ import '../../../core/widgets/cached_wardrobe_image.dart';
 import '../../creative/presentation/creative_space_screen.dart';
 import '../data/outfit_repository.dart';
 import '../domain/outfit_preview.dart';
+import '../domain/outfit_weather.dart';
+import 'city_picker_sheet.dart';
+
+enum _WeatherState { idle, loading, available, unavailable }
 
 class OutfitGeneratorScreen extends StatefulWidget {
   const OutfitGeneratorScreen({required this.token, super.key});
@@ -18,21 +23,156 @@ class OutfitGeneratorScreen extends StatefulWidget {
   State<OutfitGeneratorScreen> createState() => _OutfitGeneratorScreenState();
 }
 
+class _LocationMessage implements Exception {
+  const _LocationMessage(this.message);
+
+  final String message;
+}
+
 class _OutfitGeneratorScreenState extends State<OutfitGeneratorScreen> {
   final _repository = OutfitRepository(ApiClient());
   final _occasion = TextEditingController();
   final _notes = TextEditingController();
+  DateTime _wearAt = DateTime.now();
+  OutfitLocation? _location;
+  OutfitWeatherContext? _weatherContext;
+  _WeatherState _weatherState = _WeatherState.idle;
+  CancelToken? _weatherCancelToken;
+  int _weatherVersion = 0;
   OutfitPreview? _preview;
   String? _error;
   bool _generating = false;
   bool _saving = false;
+  bool _gettingLocation = false;
   String? _saveIdempotencyKey;
 
   @override
   void dispose() {
+    _weatherCancelToken?.cancel();
     _occasion.dispose();
     _notes.dispose();
     super.dispose();
+  }
+
+  Future<void> _useCurrentLocation() async {
+    if (_gettingLocation) return;
+    setState(() {
+      _gettingLocation = true;
+      _error = null;
+    });
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        throw const _LocationMessage('Turn on location services to use your current location.');
+      }
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied) {
+        throw const _LocationMessage('Location was not shared. Choose a city or continue without weather.');
+      }
+      if (permission == LocationPermission.deniedForever) {
+        throw const _LocationMessage('Location is blocked. Choose a city or enable it in Settings.');
+      }
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
+      if (!mounted) return;
+      setState(() => _location = OutfitLocation(
+        name: 'Current location',
+        latitude: position.latitude,
+        longitude: position.longitude,
+      ));
+      _weatherInputsChanged();
+    } on _LocationMessage catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Could not get your location. Choose a city or try again.');
+    } finally {
+      if (mounted) setState(() => _gettingLocation = false);
+    }
+  }
+
+  Future<void> _chooseCity() async {
+    final location = await showModalBottomSheet<OutfitLocation>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => CityPickerSheet(token: widget.token, repository: _repository),
+    );
+    if (location == null || !mounted) return;
+    setState(() => _location = location);
+    _weatherInputsChanged();
+  }
+
+  Future<void> _pickWearAt() async {
+    final now = DateTime.now();
+    final date = await showDatePicker(
+      context: context,
+      initialDate: _wearAt.isBefore(now) ? now : _wearAt,
+      firstDate: DateTime(now.year, now.month, now.day),
+      lastDate: now.add(const Duration(days: 15)),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_wearAt.isBefore(now) ? now : _wearAt),
+    );
+    if (time == null || !mounted) return;
+    setState(() => _wearAt = DateTime(date.year, date.month, date.day, time.hour, time.minute));
+    _weatherInputsChanged();
+  }
+
+  void _useNow() {
+    setState(() => _wearAt = DateTime.now());
+    _weatherInputsChanged();
+  }
+
+  void _weatherInputsChanged() {
+    _weatherVersion += 1;
+    _weatherCancelToken?.cancel();
+    _weatherCancelToken = null;
+    final location = _location;
+    setState(() {
+      _preview = null;
+      _saveIdempotencyKey = null;
+      _weatherContext = null;
+      _weatherState = location == null ? _WeatherState.idle : _WeatherState.loading;
+    });
+    if (location != null) _refreshWeather(location, _weatherVersion);
+  }
+
+  Future<void> _refreshWeather(OutfitLocation location, int version) async {
+    final cancelToken = CancelToken();
+    _weatherCancelToken = cancelToken;
+    try {
+      final result = await _repository.weatherContext(
+        token: widget.token,
+        location: location,
+        wearAt: _wearAt,
+        cancelToken: cancelToken,
+      );
+      if (!mounted || version != _weatherVersion) return;
+      setState(() {
+        _weatherState = result.status == 'available' && result.weatherContext != null
+            ? _WeatherState.available
+            : _WeatherState.unavailable;
+        _weatherContext = result.weatherContext;
+      });
+    } on DioException catch (error) {
+      if (CancelToken.isCancel(error) || !mounted || version != _weatherVersion) return;
+      setState(() => _weatherState = _WeatherState.unavailable);
+    }
+  }
+
+  String _wearAtLabel(BuildContext context) {
+    final now = DateTime.now();
+    final localizations = MaterialLocalizations.of(context);
+    final sameDay = _wearAt.year == now.year && _wearAt.month == now.month && _wearAt.day == now.day;
+    final date = sameDay ? 'Today' : localizations.formatMediumDate(_wearAt);
+    return '$date, ${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(_wearAt))}';
   }
 
   String _messageFor(DioException error) {
@@ -59,6 +199,8 @@ class _OutfitGeneratorScreenState extends State<OutfitGeneratorScreen> {
         token: widget.token,
         occasion: _occasion.text,
         styleNotes: _notes.text,
+        location: _location,
+        wearAt: _location == null ? null : _wearAt,
       );
       if (mounted) {
         setState(() {
@@ -105,6 +247,7 @@ class _OutfitGeneratorScreenState extends State<OutfitGeneratorScreen> {
   @override
   Widget build(BuildContext context) {
     final busy = _generating || _saving;
+    final canGenerate = !busy && _weatherState != _WeatherState.loading;
     return PopScope(
       canPop: !busy,
       onPopInvokedWithResult: (didPop, _) {
@@ -151,16 +294,90 @@ class _OutfitGeneratorScreenState extends State<OutfitGeneratorScreen> {
               maxLength: 240,
               maxLines: 3,
               decoration: const InputDecoration(
-                labelText: 'Style notes (optional)',
+                labelText: 'Mood / vibe (optional)',
                 hintText: 'Comfortable, minimal, colourful...',
               ),
             ),
+            const SizedBox(height: 12),
+            Text(
+              'When will you wear it?',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 10,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: busy ? null : _useNow,
+                  icon: const Icon(Icons.schedule),
+                  label: const Text('Now'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: busy ? null : _pickWearAt,
+                  icon: const Icon(Icons.calendar_month_outlined),
+                  label: Text(_wearAtLabel(context)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Where will you be?',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            if (_location != null)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.place_outlined),
+                title: Text(_location!.name),
+                subtitle: const Text('Used only to check weather for this outfit'),
+                trailing: IconButton(
+                  tooltip: 'Clear location',
+                  onPressed: busy
+                      ? null
+                      : () {
+                          setState(() => _location = null);
+                          _weatherInputsChanged();
+                        },
+                  icon: const Icon(Icons.close),
+                ),
+              ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 10,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: busy || _gettingLocation ? null : _useCurrentLocation,
+                  icon: const Icon(Icons.my_location_outlined),
+                  label: Text(
+                    _gettingLocation ? 'Finding location...' : 'Use my location',
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: busy ? null : _chooseCity,
+                  icon: const Icon(Icons.search),
+                  label: const Text('Choose a city'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _WeatherCard(
+              state: _weatherState,
+              weather: _weatherContext,
+              location: _location,
+              wearAtLabel: _wearAtLabel(context),
+            ),
             const SizedBox(height: 16),
             FilledButton.icon(
-              onPressed: busy ? null : _generate,
+              onPressed: canGenerate ? _generate : null,
               icon: const Icon(Icons.auto_awesome_outlined),
               label: Text(
-                _generating ? 'Creating outfit...' : 'Generate outfit',
+                _generating
+                    ? 'Creating outfit...'
+                    : _weatherState == _WeatherState.loading
+                    ? 'Checking weather...'
+                    : 'Generate outfit',
               ),
             ),
             if (_generating) ...[
@@ -173,6 +390,12 @@ class _OutfitGeneratorScreenState extends State<OutfitGeneratorScreen> {
             ],
             if (_preview != null) ...[
               const SizedBox(height: 28),
+              if (_preview!.isQuickPick) ...[
+                const _InfoBanner(
+                  message: 'Quick pick — AI is temporarily unavailable. You can retry generation.',
+                ),
+                const SizedBox(height: 12),
+              ],
               Text(
                 _preview!.name,
                 style: Theme.of(context).textTheme.titleLarge,
@@ -254,4 +477,99 @@ class _OutfitGeneratorScreenState extends State<OutfitGeneratorScreen> {
       ),
     );
   }
+}
+
+class _WeatherCard extends StatelessWidget {
+  const _WeatherCard({
+    required this.state,
+    required this.weather,
+    required this.location,
+    required this.wearAtLabel,
+  });
+
+  final _WeatherState state;
+  final OutfitWeatherContext? weather;
+  final OutfitLocation? location;
+  final String wearAtLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    if (location == null) {
+      return const _InfoBanner(
+        message: 'Location is optional. Add it to include weather in your outfit suggestion.',
+      );
+    }
+    if (state == _WeatherState.loading) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${location!.name} · $wearAtLabel'),
+              const SizedBox(height: 10),
+              const LinearProgressIndicator(),
+              const SizedBox(height: 8),
+              const Text('Checking weather...'),
+            ],
+          ),
+        ),
+      );
+    }
+    if (state == _WeatherState.unavailable || weather == null) {
+      return const _InfoBanner(
+        message: 'Weather unavailable — your outfit will be based on mood, occasion and wardrobe only.',
+      );
+    }
+    final details = <String>[
+      '${weather!.temperatureC.round()}°C',
+      'Feels like ${weather!.apparentTemperatureC.round()}°C',
+      weather!.condition,
+      if (weather!.precipitationProbability != null)
+        '${weather!.precipitationProbability}% rain',
+      if (weather!.windSpeedKmh != null) '${weather!.windSpeedKmh!.round()} km/h wind',
+    ];
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${weather!.locationName} · ${weather!.timeOfDay}',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 4),
+            Text(details.join(' · ')),
+            if (weather!.considerations.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(weather!.considerations.first, style: const TextStyle(color: Colors.black54)),
+            ],
+            const SizedBox(height: 8),
+            const Text(
+              'Weather data by Open-Meteo',
+              style: TextStyle(color: Colors.black45, fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoBanner extends StatelessWidget {
+  const _InfoBanner({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Text(message),
+  );
 }

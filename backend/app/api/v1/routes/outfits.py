@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,9 +12,21 @@ from app.api.v1.routes.items import _response
 from app.db.models.clothing_item import ClothingItem
 from app.db.models.outfit import Outfit, OutfitItem
 from app.db.models.user import User
-from app.schemas.outfit import OutfitCreate, OutfitGenerateRequest, OutfitItemLayout, OutfitPreview, OutfitResponse, OutfitUpdate
+from app.schemas.outfit import (
+    OutfitCreate,
+    OutfitGenerateRequest,
+    OutfitItemLayout,
+    OutfitLocation,
+    OutfitPreview,
+    OutfitResponse,
+    OutfitUpdate,
+    OutfitWeatherContext,
+    OutfitWeatherContextRequest,
+    OutfitWeatherContextResponse,
+)
 from app.services.gemini_outfit_generator import GeminiOutfitGenerator
 from app.services.idempotency import acquire_idempotency_lease, complete_idempotency_lease
+from app.services.weather_service import WeatherUnavailable, weather_service
 
 router = APIRouter()
 
@@ -92,6 +105,45 @@ async def _outfit_with_items(
         )
     ).all()
     return outfit, items
+
+
+def _validate_wear_at(wear_at: datetime) -> None:
+    now = datetime.now()
+    local_wear_at = wear_at.replace(tzinfo=None)
+    if local_wear_at < now - timedelta(minutes=30):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Choose a current or future time for this outfit")
+    if local_wear_at > now + timedelta(days=16):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Weather forecasts are available for up to 16 days")
+
+
+async def _weather_context(payload: OutfitWeatherContextRequest) -> OutfitWeatherContext:
+    _validate_wear_at(payload.wear_at)
+    return await weather_service.get_context(location=payload.location, wear_at=payload.wear_at.replace(tzinfo=None))
+
+
+@router.get("/locations", response_model=list[OutfitLocation])
+async def search_locations(
+    query: str = Query(min_length=2, max_length=100),
+    current_user: User = Depends(get_current_user),
+) -> list[OutfitLocation]:
+    del current_user
+    try:
+        return await weather_service.search_locations(query)
+    except WeatherUnavailable:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="City search is temporarily unavailable") from None
+
+
+@router.post("/weather-context", response_model=OutfitWeatherContextResponse)
+async def preview_weather_context(
+    payload: OutfitWeatherContextRequest,
+    current_user: User = Depends(get_current_user),
+) -> OutfitWeatherContextResponse:
+    del current_user
+    try:
+        context = await _weather_context(payload)
+        return OutfitWeatherContextResponse(status="available", weather_context=context)
+    except WeatherUnavailable:
+        return OutfitWeatherContextResponse(status="unavailable")
 
 
 @router.get("", response_model=list[OutfitResponse])
@@ -194,11 +246,35 @@ async def generate_outfit(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Add wardrobe items before generating an outfit",
         )
+    weather_context: OutfitWeatherContext | None = None
+    weather_status = "not_requested"
+    if payload.location is not None and payload.wear_at is not None:
+        try:
+            weather_context = await _weather_context(
+                OutfitWeatherContextRequest(location=payload.location, wear_at=payload.wear_at)
+            )
+            weather_status = "available"
+        except WeatherUnavailable:
+            weather_status = "unavailable"
     try:
-        suggestion = await GeminiOutfitGenerator().generate(items, occasion=payload.occasion, style_notes=payload.style_notes, weather_summary=payload.weather_summary)
+        suggestion = await GeminiOutfitGenerator().generate(
+            items,
+            occasion=payload.occasion,
+            style_notes=payload.style_notes,
+            weather_context=weather_context,
+        )
     except HTTPException:
         name, rationale, selected = _quick_pick(items)
-        return OutfitPreview(name=name, occasion=payload.occasion, rationale=f"Quick pick: {rationale}", item_ids=[item.id for item in selected], items=[_response(item) for item in selected])
+        return OutfitPreview(
+            name=name,
+            occasion=payload.occasion,
+            rationale=f"Quick pick: Gemini is temporarily unavailable. {rationale}",
+            item_ids=[item.id for item in selected],
+            items=[_response(item) for item in selected],
+            weather_status=weather_status,
+            weather_context=weather_context,
+            is_quick_pick=True,
+        )
     allowed_ids = {item.id for item in items}
     item_ids = list(dict.fromkeys(suggestion.item_ids))
     if not item_ids or any(item_id not in allowed_ids for item_id in item_ids):
@@ -213,6 +289,8 @@ async def generate_outfit(
         rationale=suggestion.rationale,
         item_ids=item_ids,
         items=[_response(by_id[item_id]) for item_id in item_ids],
+        weather_status=weather_status,
+        weather_context=weather_context,
     )
 
 

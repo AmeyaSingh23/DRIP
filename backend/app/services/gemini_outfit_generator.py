@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 
 from app.core.config import get_settings
 from app.db.models.clothing_item import ClothingItem
+from app.schemas.outfit import OutfitWeatherContext
 
 
 class OutfitSuggestion(BaseModel):
@@ -36,7 +37,7 @@ class GeminiOutfitGenerator:
         *,
         occasion: str | None,
         style_notes: str | None,
-        weather_summary: str | None,
+        weather_context: OutfitWeatherContext | None,
     ) -> OutfitSuggestion:
         inventory = [
             {
@@ -57,7 +58,7 @@ Prefer a coherent primary garment combination (top+bottom, dress, or uniform) an
 Never invent garments, IDs, brands, weather facts, or missing items.
 Occasion: {occasion or 'not specified'}
 Style notes: {style_notes or 'not specified'}
-Weather: {weather_summary or 'not specified'}
+Weather context: {json.dumps(weather_context.model_dump(mode='json'), separators=(',', ':')) if weather_context else 'not available; do not assume weather conditions'}
 Inventory: {json.dumps(inventory, separators=(',', ':'))}"""
 
         def request() -> str:
@@ -73,13 +74,21 @@ Inventory: {json.dumps(inventory, separators=(',', ':'))}"""
             return interaction.output_text
 
         response_text: str | None = None
-        for attempt in range(3):
+        for attempt in range(2):
             try:
-                response_text = await asyncio.to_thread(request)
+                response_text = await asyncio.wait_for(asyncio.to_thread(request), timeout=30)
                 break
+            except TimeoutError as error:
+                if attempt == 0:
+                    await asyncio.sleep(1)
+                    continue
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail="Gemini outfit generation is temporarily unavailable",
+                ) from error
             except APIError as error:
-                if error.code in {429, 500, 502, 503, 504} and attempt < 2:
-                    await asyncio.sleep(2**attempt)
+                if error.code in {429, 500, 502, 503, 504} and attempt == 0:
+                    await asyncio.sleep(1)
                     continue
                 if error.code == 429:
                     raise HTTPException(
