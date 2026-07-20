@@ -11,6 +11,7 @@ class OutfitPreview {
     this.weatherStatus = 'not_requested',
     this.weatherContext,
     this.isQuickPick = false,
+    this.retryAfterSeconds,
   });
 
   factory OutfitPreview.fromJson(Map<String, dynamic> json) => OutfitPreview(
@@ -24,12 +25,14 @@ class OutfitPreview {
             .map(ClothingItemDraft.fromJson)
             .toList(),
     weatherStatus: json['weather_status'] as String? ?? 'not_requested',
-    weatherContext: json['weather_context'] is Map<String, dynamic>
-        ? OutfitWeatherContext.fromJson(
-            json['weather_context'] as Map<String, dynamic>,
-          )
-        : null,
+    weatherContext:
+        json['weather_context'] is Map<String, dynamic>
+            ? OutfitWeatherContext.fromJson(
+              json['weather_context'] as Map<String, dynamic>,
+            )
+            : null,
     isQuickPick: json['is_quick_pick'] as bool? ?? false,
+    retryAfterSeconds: json['retry_after_seconds'] as int?,
   );
 
   final String name;
@@ -40,4 +43,5 @@ class OutfitPreview {
   final String weatherStatus;
   final OutfitWeatherContext? weatherContext;
   final bool isQuickPick;
+  final int? retryAfterSeconds;
 }

@@ -25,7 +25,7 @@ from app.schemas.outfit import (
     OutfitWeatherContextRequest,
     OutfitWeatherContextResponse,
 )
-from app.services.gemini_outfit_generator import GeminiOutfitGenerator
+from app.services.groq_outfit_generator import GroqOutfitGenerator
 from app.services.idempotency import acquire_idempotency_lease, complete_idempotency_lease
 from app.services.weather_service import WeatherUnavailable, weather_service
 
@@ -41,7 +41,7 @@ def _quick_pick(items: list[ClothingItem]) -> tuple[str, str, list[ClothingItem]
     selected += (by_category.get("Shoes") or [])[:1]
     selected += (by_category.get("Outerwear") or by_category.get("Accessories") or [])[:1]
     unique = list(dict.fromkeys(selected))
-    return "Quick pick", "A reliable combination built from the categories in your wardrobe.", unique
+    return "Simple outfit", "A simple automatic combination from your wardrobe.", unique
 
 
 async def _active_items(
@@ -299,30 +299,37 @@ async def generate_outfit(
         except WeatherUnavailable:
             weather_status = "unavailable"
     try:
-        suggestion = await GeminiOutfitGenerator().generate(
+        suggestion = await GroqOutfitGenerator().generate(
             items,
             occasion=payload.occasion,
             style_notes=payload.style_notes,
             weather_context=weather_context,
         )
-    except HTTPException:
+    except HTTPException as error:
         name, rationale, selected = _quick_pick(items)
+        retry_after: int | None = None
+        if error.status_code == status.HTTP_429_TOO_MANY_REQUESTS:
+            try:
+                retry_after = min(300, max(1, int((error.headers or {}).get("Retry-After", "60"))))
+            except ValueError:
+                retry_after = 60
         return OutfitPreview(
             name=name,
             occasion=payload.occasion,
-            rationale=f"Quick pick: Gemini is temporarily unavailable. {rationale}",
+            rationale=rationale,
             item_ids=[item.id for item in selected],
             items=[_response(item) for item in selected],
             weather_status=weather_status,
             weather_context=weather_context,
             is_quick_pick=True,
+            retry_after_seconds=retry_after,
         )
     allowed_ids = {item.id for item in items}
     item_ids = list(dict.fromkeys(suggestion.item_ids))
     if not item_ids or any(item_id not in allowed_ids for item_id in item_ids):
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Gemini returned unavailable wardrobe items. Please try again.",
+            detail="The suggestion included unavailable wardrobe items. Please try again.",
         )
     by_id = {item.id: item for item in items}
     return OutfitPreview(

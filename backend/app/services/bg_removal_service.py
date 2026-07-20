@@ -34,6 +34,20 @@ class BgRemovalService:
             secure=True,
         )
 
+    async def _delete_temp_upload(self, public_id: str) -> None:
+        for attempt in range(3):
+            try:
+                await asyncio.to_thread(
+                    cloudinary.uploader.destroy,
+                    public_id,
+                    resource_type="image",
+                    invalidate=True,
+                )
+                return
+            except Exception:
+                if attempt < 2:
+                    await asyncio.sleep(2 ** attempt)
+
     async def remove_background(self, image_data: bytes, content_type: str) -> bytes:
         del content_type  # Cloudinary detects the image type from the bytes.
         public_id: str | None = None
@@ -80,15 +94,4 @@ class BgRemovalService:
             ) from error
         finally:
             if public_id is not None:
-                try:
-                    await asyncio.to_thread(
-                        cloudinary.uploader.destroy,
-                        public_id,
-                        resource_type="image",
-                        invalidate=True,
-                    )
-                except Exception:
-                    # A reconciler cannot identify transient uploads, so never mask
-                    # the original failure. Cloudinary's folder lifecycle is the
-                    # final safety net if this best-effort cleanup is unavailable.
-                    pass
+                await self._delete_temp_upload(public_id)

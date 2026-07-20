@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
@@ -45,13 +47,42 @@ class _OutfitGeneratorScreenState extends State<OutfitGeneratorScreen> {
   bool _saving = false;
   bool _gettingLocation = false;
   String? _saveIdempotencyKey;
+  Timer? _retryTimer;
+  DateTime? _retryAvailableAt;
 
   @override
   void dispose() {
     _weatherCancelToken?.cancel();
+    _retryTimer?.cancel();
     _occasion.dispose();
     _notes.dispose();
     super.dispose();
+  }
+
+  int get _retrySeconds {
+    final availableAt = _retryAvailableAt;
+    if (availableAt == null) return 0;
+    final milliseconds = availableAt.difference(DateTime.now()).inMilliseconds;
+    return milliseconds <= 0 ? 0 : (milliseconds / 1000).ceil();
+  }
+
+  void _startRetryCooldown(int seconds) {
+    _retryTimer?.cancel();
+    _retryAvailableAt = DateTime.now().add(
+      Duration(seconds: seconds.clamp(1, 300)),
+    );
+    _retryTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_retrySeconds == 0) {
+        setState(() => _retryAvailableAt = null);
+        timer.cancel();
+        return;
+      }
+      setState(() {});
+    });
   }
 
   Future<void> _useCurrentLocation() async {
@@ -62,17 +93,23 @@ class _OutfitGeneratorScreenState extends State<OutfitGeneratorScreen> {
     });
     try {
       if (!await Geolocator.isLocationServiceEnabled()) {
-        throw const _LocationMessage('Turn on location services to use your current location.');
+        throw const _LocationMessage(
+          'Turn on location services to use your current location.',
+        );
       }
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
       }
       if (permission == LocationPermission.denied) {
-        throw const _LocationMessage('Location was not shared. Choose a city or continue without weather.');
+        throw const _LocationMessage(
+          'Location was not shared. Choose a city or continue without weather.',
+        );
       }
       if (permission == LocationPermission.deniedForever) {
-        throw const _LocationMessage('Location is blocked. Choose a city or enable it in Settings.');
+        throw const _LocationMessage(
+          'Location is blocked. Choose a city or enable it in Settings.',
+        );
       }
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
@@ -81,16 +118,27 @@ class _OutfitGeneratorScreenState extends State<OutfitGeneratorScreen> {
         ),
       );
       if (!mounted) return;
-      setState(() => _location = OutfitLocation(
-        name: 'Current location',
-        latitude: position.latitude,
-        longitude: position.longitude,
-      ));
+      setState(
+        () =>
+            _location = OutfitLocation(
+              name: 'Current location',
+              latitude: position.latitude,
+              longitude: position.longitude,
+            ),
+      );
       _weatherInputsChanged();
     } on _LocationMessage catch (error) {
-      if (mounted) setState(() => _error = error.message);
+      if (mounted) {
+        setState(() => _error = error.message);
+      }
     } catch (_) {
-      if (mounted) setState(() => _error = 'Could not get your location. Choose a city or try again.');
+      if (mounted) {
+        setState(
+          () =>
+              _error =
+                  'Could not get your location. Choose a city or try again.',
+        );
+      }
     } finally {
       if (mounted) setState(() => _gettingLocation = false);
     }
@@ -100,7 +148,8 @@ class _OutfitGeneratorScreenState extends State<OutfitGeneratorScreen> {
     final location = await showModalBottomSheet<OutfitLocation>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => CityPickerSheet(token: widget.token, repository: _repository),
+      builder:
+          (_) => CityPickerSheet(token: widget.token, repository: _repository),
     );
     if (location == null || !mounted) return;
     setState(() => _location = location);
@@ -118,10 +167,21 @@ class _OutfitGeneratorScreenState extends State<OutfitGeneratorScreen> {
     if (date == null || !mounted) return;
     final time = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay.fromDateTime(_wearAt.isBefore(now) ? now : _wearAt),
+      initialTime: TimeOfDay.fromDateTime(
+        _wearAt.isBefore(now) ? now : _wearAt,
+      ),
     );
     if (time == null || !mounted) return;
-    setState(() => _wearAt = DateTime(date.year, date.month, date.day, time.hour, time.minute));
+    setState(
+      () =>
+          _wearAt = DateTime(
+            date.year,
+            date.month,
+            date.day,
+            time.hour,
+            time.minute,
+          ),
+    );
     _weatherInputsChanged();
   }
 
@@ -139,7 +199,8 @@ class _OutfitGeneratorScreenState extends State<OutfitGeneratorScreen> {
       _preview = null;
       _saveIdempotencyKey = null;
       _weatherContext = null;
-      _weatherState = location == null ? _WeatherState.idle : _WeatherState.loading;
+      _weatherState =
+          location == null ? _WeatherState.idle : _WeatherState.loading;
     });
     if (location != null) _refreshWeather(location, _weatherVersion);
   }
@@ -156,13 +217,18 @@ class _OutfitGeneratorScreenState extends State<OutfitGeneratorScreen> {
       );
       if (!mounted || version != _weatherVersion) return;
       setState(() {
-        _weatherState = result.status == 'available' && result.weatherContext != null
-            ? _WeatherState.available
-            : _WeatherState.unavailable;
+        _weatherState =
+            result.status == 'available' && result.weatherContext != null
+                ? _WeatherState.available
+                : _WeatherState.unavailable;
         _weatherContext = result.weatherContext;
       });
     } on DioException catch (error) {
-      if (CancelToken.isCancel(error) || !mounted || version != _weatherVersion) return;
+      if (CancelToken.isCancel(error) ||
+          !mounted ||
+          version != _weatherVersion) {
+        return;
+      }
       setState(() => _weatherState = _WeatherState.unavailable);
     }
   }
@@ -170,7 +236,10 @@ class _OutfitGeneratorScreenState extends State<OutfitGeneratorScreen> {
   String _wearAtLabel(BuildContext context) {
     final now = DateTime.now();
     final localizations = MaterialLocalizations.of(context);
-    final sameDay = _wearAt.year == now.year && _wearAt.month == now.month && _wearAt.day == now.day;
+    final sameDay =
+        _wearAt.year == now.year &&
+        _wearAt.month == now.month &&
+        _wearAt.day == now.day;
     final date = sameDay ? 'Today' : localizations.formatMediumDate(_wearAt);
     return '$date, ${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(_wearAt))}';
   }
@@ -187,6 +256,7 @@ class _OutfitGeneratorScreenState extends State<OutfitGeneratorScreen> {
   }
 
   Future<void> _generate() async {
+    if (_generating || _retrySeconds > 0) return;
     FocusScope.of(context).unfocus();
     setState(() {
       _generating = true;
@@ -207,6 +277,12 @@ class _OutfitGeneratorScreenState extends State<OutfitGeneratorScreen> {
           _preview = preview;
           _saveIdempotencyKey = const Uuid().v4();
         });
+        if (preview.isQuickPick) {
+          _startRetryCooldown(preview.retryAfterSeconds ?? 2);
+        } else {
+          _retryTimer?.cancel();
+          _retryAvailableAt = null;
+        }
       }
     } on DioException catch (error) {
       if (mounted) setState(() => _error = _messageFor(error));
@@ -275,7 +351,7 @@ class _OutfitGeneratorScreenState extends State<OutfitGeneratorScreen> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Gemini selects from your saved items only. Generation is a preview until you choose Save.',
+              'Suggestions use your saved items only. Generation is a preview until you choose Save.',
             ),
             const SizedBox(height: 20),
             TextField(
@@ -330,15 +406,18 @@ class _OutfitGeneratorScreenState extends State<OutfitGeneratorScreen> {
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.place_outlined),
                 title: Text(_location!.name),
-                subtitle: const Text('Used only to check weather for this outfit'),
+                subtitle: const Text(
+                  'Used only to check weather for this outfit',
+                ),
                 trailing: IconButton(
                   tooltip: 'Clear location',
-                  onPressed: busy
-                      ? null
-                      : () {
-                          setState(() => _location = null);
-                          _weatherInputsChanged();
-                        },
+                  onPressed:
+                      busy
+                          ? null
+                          : () {
+                            setState(() => _location = null);
+                            _weatherInputsChanged();
+                          },
                   icon: const Icon(Icons.close),
                 ),
               ),
@@ -348,10 +427,13 @@ class _OutfitGeneratorScreenState extends State<OutfitGeneratorScreen> {
               runSpacing: 8,
               children: [
                 OutlinedButton.icon(
-                  onPressed: busy || _gettingLocation ? null : _useCurrentLocation,
+                  onPressed:
+                      busy || _gettingLocation ? null : _useCurrentLocation,
                   icon: const Icon(Icons.my_location_outlined),
                   label: Text(
-                    _gettingLocation ? 'Finding location...' : 'Use my location',
+                    _gettingLocation
+                        ? 'Finding location...'
+                        : 'Use my location',
                   ),
                 ),
                 OutlinedButton.icon(
@@ -392,7 +474,18 @@ class _OutfitGeneratorScreenState extends State<OutfitGeneratorScreen> {
               const SizedBox(height: 28),
               if (_preview!.isQuickPick) ...[
                 const _InfoBanner(
-                  message: 'Quick pick — AI is temporarily unavailable. You can retry generation.',
+                  message:
+                      'Couldn’t create a personalised outfit right now. Here’s a simple combination from your wardrobe.',
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: busy || _retrySeconds > 0 ? null : _generate,
+                  icon: const Icon(Icons.refresh),
+                  label: Text(
+                    _retrySeconds > 0
+                        ? 'Try again in ${_retrySeconds}s'
+                        : 'Try again',
+                  ),
                 ),
                 const SizedBox(height: 12),
               ],
@@ -496,7 +589,8 @@ class _WeatherCard extends StatelessWidget {
   Widget build(BuildContext context) {
     if (location == null) {
       return const _InfoBanner(
-        message: 'Location is optional. Add it to include weather in your outfit suggestion.',
+        message:
+            'Location is optional. Add it to include weather in your outfit suggestion.',
       );
     }
     if (state == _WeatherState.loading) {
@@ -518,7 +612,8 @@ class _WeatherCard extends StatelessWidget {
     }
     if (state == _WeatherState.unavailable || weather == null) {
       return const _InfoBanner(
-        message: 'Weather unavailable — your outfit will be based on mood, occasion and wardrobe only.',
+        message:
+            'Weather unavailable — your outfit will be based on mood, occasion and wardrobe only.',
       );
     }
     final details = <String>[
@@ -527,7 +622,8 @@ class _WeatherCard extends StatelessWidget {
       weather!.condition,
       if (weather!.precipitationProbability != null)
         '${weather!.precipitationProbability}% rain',
-      if (weather!.windSpeedKmh != null) '${weather!.windSpeedKmh!.round()} km/h wind',
+      if (weather!.windSpeedKmh != null)
+        '${weather!.windSpeedKmh!.round()} km/h wind',
     ];
     return Card(
       child: Padding(
@@ -543,7 +639,10 @@ class _WeatherCard extends StatelessWidget {
             Text(details.join(' · ')),
             if (weather!.considerations.isNotEmpty) ...[
               const SizedBox(height: 8),
-              Text(weather!.considerations.first, style: const TextStyle(color: Colors.black54)),
+              Text(
+                weather!.considerations.first,
+                style: const TextStyle(color: Colors.black54),
+              ),
             ],
             const SizedBox(height: 8),
             const Text(

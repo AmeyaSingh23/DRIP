@@ -62,6 +62,7 @@ class OutfitPreview(BaseModel):
     weather_status: Literal["available", "unavailable", "not_requested"] = "not_requested"
     weather_context: OutfitWeatherContext | None = None
     is_quick_pick: bool = False
+    retry_after_seconds: int | None = Field(default=None, ge=1, le=300)
 
 
 class OutfitItemLayout(BaseModel):

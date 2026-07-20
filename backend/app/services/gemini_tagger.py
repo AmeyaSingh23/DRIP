@@ -3,9 +3,11 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import logging
 
 from fastapi import HTTPException, status
 from google import genai
+from google.genai import types
 from google.genai.errors import APIError
 
 from app.core.config import get_settings
@@ -15,6 +17,7 @@ _CATEGORIES = {"Tops", "Bottoms", "Outerwear", "Shoes", "Dresses", "Accessories"
 _COLORS = {"Black", "White", "Beige", "Navy", "Red", "Green", "Blue", "Pink", "Brown", "Grey", "Yellow", "Purple", "Orange", "Multi", "Other"}
 _PATTERNS = {"Solid", "Striped", "Floral", "Checkered", "Animal Print", "Graphic", "Abstract", "Other"}
 _FABRICS = {"Denim", "Knit", "Cotton", "Silk", "Linen", "Leather", "Synthetic", "Wool", "Corduroy", "Other"}
+logger = logging.getLogger(__name__)
 
 _PROMPT = """First decide whether this photo contains one recognizable clothing item suitable for a personal wardrobe.
 Ignore bedsheets, furniture, hands, legs, shoes, camera equipment, text, and every non-garment object.
@@ -57,6 +60,10 @@ _COLOR_KEYWORDS: tuple[tuple[str, str], ...] = (
     ("Purple", "purple violet lavender lilac"),
     ("Orange", "orange coral peach"),
 )
+
+
+def _is_rate_limited(error: Exception) -> bool:
+    return getattr(error, "code", None) == 429 or "quota" in str(error).casefold()
 
 
 def _canonical(value: object, allowed: set[str], fallback: str | None = None) -> str | None:
@@ -121,8 +128,16 @@ class GeminiTagger:
     def __init__(self) -> None:
         settings = get_settings()
         if not settings.gemini_api_key:
-            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Gemini is not configured on the server")
-        self._client = genai.Client(api_key=settings.gemini_api_key)
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Auto-tagging is temporarily unavailable.")
+        self._client = genai.Client(
+            api_key=settings.gemini_api_key,
+            http_options=types.HttpOptions(
+                retryOptions=types.HttpRetryOptions(
+                    attempts=1,
+                    httpStatusCodes=[408, 500, 502, 503, 504],
+                ),
+            ),
+        )
         self._model = settings.gemini_model
 
     async def tag(self, image_bytes: bytes, mime_type: str) -> ClothingItemTags:
@@ -143,19 +158,25 @@ class GeminiTagger:
             return interaction.output_text
 
         response_text: str | None = None
-        for attempt in range(3):
+        for attempt in range(2):
             try:
                 response_text = await asyncio.to_thread(request)
                 break
             except APIError as error:
-                if error.code in {429, 500, 502, 503, 504} and attempt < 2:
-                    await asyncio.sleep(2 ** attempt)
+                if error.code in {500, 502, 503, 504} and attempt == 0:
+                    await asyncio.sleep(1.0)
                     continue
                 if error.code == 429:
-                    raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Gemini is temporarily busy. Please wait a moment and try again.") from error
-                raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Gemini tagging is temporarily unavailable") from error
+                    logger.warning("Auto-tagging rate-limited")
+                    raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Auto-tagging is busy. Wait a minute, then try again or add the details manually.", headers={"Retry-After": "60"}) from error
+                logger.warning("Auto-tagging service error: code=%s", error.code)
+                raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Auto-tagging is temporarily unavailable. Add the details manually or try again.") from error
             except Exception as error:
-                raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Gemini tagging is temporarily unavailable") from error
+                if _is_rate_limited(error):
+                    logger.warning("Auto-tagging rate-limited")
+                    raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Auto-tagging is busy. Wait a minute, then try again or add the details manually.", headers={"Retry-After": "60"}) from error
+                logger.warning("Auto-tagging request failed: %s", type(error).__name__)
+                raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Auto-tagging is temporarily unavailable. Add the details manually or try again.") from error
         try:
             parsed = json.loads(response_text)
         except (TypeError, json.JSONDecodeError):

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 
@@ -47,12 +48,15 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
   final _color = TextEditingController();
   final _customCategory = TextEditingController();
   File? _cutout;
+  File? _taggingImage;
   String _category = 'Custom';
   String _status = _idleStatus;
   String? _error;
   bool _busy = false;
   bool _wornItemDetected = false;
   String? _idempotencyKey;
+  Timer? _retryTimer;
+  DateTime? _retryAvailableAt;
 
   @override
   void dispose() {
@@ -60,6 +64,11 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
     if (cutout != null) {
       _deleteTemporaryFile(cutout);
     }
+    final taggingImage = _taggingImage;
+    if (taggingImage != null) {
+      _deleteTemporaryFile(taggingImage);
+    }
+    _retryTimer?.cancel();
     _name.dispose();
     _color.dispose();
     _customCategory.dispose();
@@ -70,6 +79,12 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
     if (_busy) {
       return;
     }
+    await _clearTaggingImage();
+    final previousCutout = _cutout;
+    _cutout = null;
+    if (previousCutout != null) {
+      await _deleteTemporaryFile(previousCutout);
+    }
     File? cutoutSource;
     File? rawCutout;
     File? taggingImage;
@@ -79,6 +94,7 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
       _wornItemDetected = false;
       _cutout = null;
       _idempotencyKey = const Uuid().v4();
+      _retryAvailableAt = null;
       _status = 'Opening image...';
     });
     try {
@@ -134,12 +150,13 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
         });
       }
       taggingImage = await _downscaleForTagging(edited);
+      _taggingImage = taggingImage;
+      taggingImage = null;
       final tags = await _repository.tag(
-        taggingImage: taggingImage,
+        taggingImage: _taggingImage!,
         token: widget.token,
       );
-      await _deleteTemporaryFile(taggingImage);
-      taggingImage = null;
+      await _clearTaggingImage();
       if (tags.isWornOnPerson) {
         await _deleteTemporaryFile(cutout);
         if (mounted) {
@@ -155,8 +172,10 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
         setState(() {
           _applyTags(tags);
           _status = 'Review item';
+          _retryAvailableAt = null;
         });
       }
+      _retryTimer?.cancel();
     } catch (error) {
       final isNonClothing = _isNonClothingError(error);
       final cutout = _cutout;
@@ -171,6 +190,9 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
           }
           _status = _cutout != null ? 'Review item' : _idleStatus;
         });
+        if (_cutout != null && _taggingImage != null) {
+          _startRetryCooldown(_retryAfterSeconds(error) ?? 2);
+        }
       }
     } finally {
       if (cutoutSource != null) {
@@ -194,6 +216,110 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
     _color.text = tags.color ?? '';
     _customCategory.text =
         _category == 'Custom' ? tags.customCategory ?? '' : '';
+  }
+
+  int get _retrySeconds {
+    final availableAt = _retryAvailableAt;
+    if (availableAt == null) return 0;
+    final milliseconds = availableAt.difference(DateTime.now()).inMilliseconds;
+    return milliseconds <= 0 ? 0 : (milliseconds / 1000).ceil();
+  }
+
+  int? _retryAfterSeconds(Object error) {
+    if (error is! DioException || error.response?.statusCode != 429) {
+      return null;
+    }
+    final seconds = int.tryParse(
+      error.response?.headers.value('retry-after') ?? '',
+    );
+    return seconds == null ? 60 : seconds.clamp(1, 300);
+  }
+
+  void _startRetryCooldown(int seconds) {
+    _retryTimer?.cancel();
+    _retryAvailableAt = DateTime.now().add(
+      Duration(seconds: seconds.clamp(1, 300)),
+    );
+    _retryTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_retrySeconds == 0) {
+        setState(() => _retryAvailableAt = null);
+        timer.cancel();
+        return;
+      }
+      setState(() {});
+    });
+  }
+
+  Future<void> _clearTaggingImage() async {
+    final taggingImage = _taggingImage;
+    _taggingImage = null;
+    if (taggingImage != null) {
+      await _deleteTemporaryFile(taggingImage);
+    }
+  }
+
+  Future<void> _retryAutoTag() async {
+    final taggingImage = _taggingImage;
+    if (_busy || _retrySeconds > 0 || taggingImage == null || _cutout == null) {
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+      _status = 'Identifying garment...';
+    });
+    try {
+      final tags = await _repository.tag(
+        taggingImage: taggingImage,
+        token: widget.token,
+      );
+      await _clearTaggingImage();
+      if (tags.isWornOnPerson) {
+        final cutout = _cutout;
+        if (cutout != null) await _deleteTemporaryFile(cutout);
+        if (mounted) {
+          setState(() {
+            _cutout = null;
+            _wornItemDetected = true;
+            _status = _idleStatus;
+          });
+        }
+        return;
+      }
+      if (mounted) {
+        setState(() {
+          _applyTags(tags);
+          _status = 'Review item';
+          _retryAvailableAt = null;
+        });
+      }
+      _retryTimer?.cancel();
+    } catch (error) {
+      final isNonClothing = _isNonClothingError(error);
+      if (isNonClothing) {
+        final cutout = _cutout;
+        if (cutout != null) await _deleteTemporaryFile(cutout);
+        await _clearTaggingImage();
+      }
+      if (mounted) {
+        setState(() {
+          _error = _messageFor(error);
+          if (isNonClothing) {
+            _cutout = null;
+          }
+          _status = _cutout != null ? 'Review item' : _idleStatus;
+        });
+        if (_cutout != null && _taggingImage != null) {
+          _startRetryCooldown(_retryAfterSeconds(error) ?? 2);
+        }
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   Future<void> _save() async {
@@ -222,6 +348,7 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
         idempotencyKey: _idempotencyKey ??= const Uuid().v4(),
       );
       await _deleteTemporaryFile(cutout);
+      await _clearTaggingImage();
       if (mounted) {
         ref.read(wardrobeRevisionProvider.notifier).notifyChanged();
         setState(() {
@@ -442,6 +569,18 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
         decoration: const InputDecoration(labelText: 'Color'),
       ),
       const SizedBox(height: 20),
+      if (_taggingImage != null) ...[
+        OutlinedButton.icon(
+          onPressed: _busy || _retrySeconds > 0 ? null : _retryAutoTag,
+          icon: const Icon(Icons.refresh),
+          label: Text(
+            _retrySeconds > 0
+                ? 'Retry auto-tagging in ${_retrySeconds}s'
+                : 'Retry auto-tagging',
+          ),
+        ),
+        const SizedBox(height: 10),
+      ],
       FilledButton(
         onPressed: _busy ? null : _save,
         child: const Text('Save item'),
