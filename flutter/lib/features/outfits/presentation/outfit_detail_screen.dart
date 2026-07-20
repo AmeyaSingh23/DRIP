@@ -61,9 +61,9 @@ class _OutfitDetailScreenState extends State<OutfitDetailScreen> {
       context: context,
       builder:
           (context) => AlertDialog(
-            title: const Text('Delete outfit?'),
+            title: const Text('Archive outfit?'),
             content: const Text(
-              'This removes only the saved outfit. Your wardrobe items stay untouched.',
+              'This hides the outfit from saved outfits while preserving calendar history.',
             ),
             actions: [
               TextButton(
@@ -72,8 +72,7 @@ class _OutfitDetailScreenState extends State<OutfitDetailScreen> {
               ),
               FilledButton(
                 onPressed: () => Navigator.pop(context, true),
-                style: FilledButton.styleFrom(backgroundColor: Colors.red),
-                child: const Text('Delete'),
+                child: const Text('Archive'),
               ),
             ],
           ),
@@ -81,13 +80,13 @@ class _OutfitDetailScreenState extends State<OutfitDetailScreen> {
     if (confirmed != true) return;
     setState(() => _deleting = true);
     try {
-      await _repository.delete(token: widget.token, outfitId: widget.outfitId);
+      await _repository.archive(token: widget.token, outfitId: widget.outfitId);
       if (mounted) context.pop(true);
     } on DioException catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Could not delete outfit. Please try again.'),
+            content: Text('Could not archive outfit. Please try again.'),
           ),
         );
       }
@@ -145,13 +144,13 @@ class _OutfitDetailScreenState extends State<OutfitDetailScreen> {
           title: Text(outfit?.name ?? 'Outfit'),
           automaticallyImplyLeading: !_deleting,
           actions: [
-            if (outfit != null)
+            if (outfit != null && !outfit.isArchived)
               IconButton(
                 onPressed: _deleting ? null : _editDetails,
                 icon: const Icon(Icons.edit_note_outlined),
                 tooltip: 'Edit outfit details',
               ),
-            if (outfit != null)
+            if (outfit != null && !outfit.isArchived)
               IconButton(
                 onPressed:
                     _deleting
@@ -174,11 +173,11 @@ class _OutfitDetailScreenState extends State<OutfitDetailScreen> {
                 icon: const Icon(Icons.palette_outlined),
                 tooltip: 'Style on canvas',
               ),
-            if (outfit != null)
+            if (outfit != null && !outfit.isArchived)
               IconButton(
                 onPressed: _deleting ? null : _delete,
                 icon: const Icon(Icons.delete_outline),
-                tooltip: 'Delete outfit',
+                tooltip: 'Archive outfit',
               ),
           ],
         ),
@@ -190,6 +189,11 @@ class _OutfitDetailScreenState extends State<OutfitDetailScreen> {
                 : ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
+                    if (outfit.isArchived)
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 8),
+                        child: Chip(label: Text('Archived')),
+                      ),
                     if (outfit.occasion != null)
                       Chip(label: Text(outfit.occasion!)),
                     const SizedBox(height: 8),

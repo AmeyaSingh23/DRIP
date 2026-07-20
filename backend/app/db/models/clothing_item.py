@@ -13,8 +13,8 @@ from app.db.base import Base
 class ClothingItem(Base):
     __tablename__ = "clothing_items"
     __table_args__ = (
-        Index("ix_clothing_items_user_active", "user_id", "deleted_at"),
-        Index("ix_clothing_items_user_category_active", "user_id", "category", "deleted_at"),
+        Index("ix_clothing_items_user_archived", "user_id", "archived_at"),
+        Index("ix_clothing_items_user_category_archived", "user_id", "category", "archived_at"),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
@@ -33,4 +33,4 @@ class ClothingItem(Base):
     user_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
     user_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP"))
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

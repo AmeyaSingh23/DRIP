@@ -13,6 +13,7 @@ class ClothingItemDraft {
     this.aiConfidence = 0,
     this.userVerified = false,
     this.createdAt,
+    this.archivedAt,
   });
 
   factory ClothingItemDraft.fromJson(Map<String, dynamic> json) =>
@@ -36,6 +37,10 @@ class ClothingItemDraft {
             json['created_at'] is String
                 ? DateTime.tryParse(json['created_at'] as String)
                 : null,
+        archivedAt:
+            json['archived_at'] is String
+                ? DateTime.tryParse(json['archived_at'] as String)
+                : null,
       );
 
   final String id;
@@ -51,6 +56,9 @@ class ClothingItemDraft {
   final double aiConfidence;
   final bool userVerified;
   final DateTime? createdAt;
+  final DateTime? archivedAt;
+
+  bool get isArchived => archivedAt != null;
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -66,5 +74,6 @@ class ClothingItemDraft {
     'ai_confidence': aiConfidence,
     'user_verified': userVerified,
     'created_at': createdAt?.toIso8601String(),
+    'archived_at': archivedAt?.toIso8601String(),
   };
 }

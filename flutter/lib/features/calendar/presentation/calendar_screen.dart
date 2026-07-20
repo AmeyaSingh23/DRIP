@@ -228,6 +228,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                         ? null
                                         : () => context.push(
                                           '/outfits/${entry!['outfit_id']}',
+                                          extra: widget.token,
                                         ),
                                 leading: const Icon(Icons.schedule),
                                 title: Text(_slotLabel(slot)),

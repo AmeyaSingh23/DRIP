@@ -97,9 +97,10 @@ final class OutfitRepository {
     ),
   );
 
-  Future<List<SavedOutfit>> list({required String token}) async {
+  Future<List<SavedOutfit>> list({required String token, bool archived = false}) async {
     final response = await _client.dio.get<List<dynamic>>(
       '/api/v1/outfits',
+      queryParameters: {if (archived) 'archived': true},
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
     return (response.data ?? const [])
@@ -141,9 +142,28 @@ final class OutfitRepository {
     return SavedOutfit.fromJson(response.data!);
   }
 
-  Future<void> delete({required String token, required String outfitId}) =>
+  Future<void> archive({required String token, required String outfitId}) =>
       _client.dio.delete<void>(
         '/api/v1/outfits/$outfitId',
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
+
+  Future<SavedOutfit> restore({
+    required String token,
+    required String outfitId,
+  }) async {
+    final response = await _client.dio.post<Map<String, dynamic>>(
+      '/api/v1/outfits/$outfitId/restore',
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+    return SavedOutfit.fromJson(response.data!);
+  }
+
+  Future<void> permanentlyDelete({
+    required String token,
+    required String outfitId,
+  }) => _client.dio.delete<void>(
+    '/api/v1/outfits/$outfitId/permanent',
+    options: Options(headers: {'Authorization': 'Bearer $token'}),
+  );
 }

@@ -54,6 +54,7 @@ def _response(item: ClothingItem) -> ClothingItemUploadResponse:
         cloudinary_url=item.cloudinary_url,
         cloudinary_public_id=item.cloudinary_public_id,
         created_at=item.created_at,
+        archived_at=item.archived_at,
         category=item.category,
         custom_category=item.custom_category,
         color=item.color,
@@ -68,15 +69,21 @@ def _response(item: ClothingItem) -> ClothingItemUploadResponse:
     )
 
 
-async def _active_item_or_404(item_id: UUID, user_id: UUID, session: AsyncSession) -> ClothingItem:
+async def _owned_item_or_404(item_id: UUID, user_id: UUID, session: AsyncSession) -> ClothingItem:
     item = await session.scalar(
         select(ClothingItem).where(
             ClothingItem.id == item_id,
             ClothingItem.user_id == user_id,
-            ClothingItem.deleted_at.is_(None),
         )
     )
     if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Wardrobe item not found")
+    return item
+
+
+async def _active_item_or_404(item_id: UUID, user_id: UUID, session: AsyncSession) -> ClothingItem:
+    item = await _owned_item_or_404(item_id, user_id, session)
+    if item.archived_at is not None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Wardrobe item not found")
     return item
 
@@ -85,12 +92,13 @@ async def _active_item_or_404(item_id: UUID, user_id: UUID, session: AsyncSessio
 async def list_items(
     category: str | None = Query(default=None, max_length=50),
     search: str | None = Query(default=None, max_length=100),
+    archived: bool = Query(default=False),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
 ) -> list[ClothingItemUploadResponse]:
     statement = select(ClothingItem).where(
         ClothingItem.user_id == current_user.id,
-        ClothingItem.deleted_at.is_(None),
+        ClothingItem.archived_at.is_not(None) if archived else ClothingItem.archived_at.is_(None),
     )
     if category and category != "All":
         statement = statement.where(ClothingItem.category == category)
@@ -117,7 +125,7 @@ async def get_item(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
 ) -> ClothingItemUploadResponse:
-    return _response(await _active_item_or_404(item_id, current_user.id, session))
+    return _response(await _owned_item_or_404(item_id, current_user.id, session))
 
 
 @router.get("/{item_id}/usage", response_model=ClothingItemUsageResponse)
@@ -126,7 +134,7 @@ async def get_item_usage(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
 ) -> ClothingItemUsageResponse:
-    item = await _active_item_or_404(item_id, current_user.id, session)
+    item = await _owned_item_or_404(item_id, current_user.id, session)
     outfit_rows = (
         await session.execute(
             select(Outfit.id, Outfit.name)
@@ -274,9 +282,24 @@ async def soft_delete_item(
     session: AsyncSession = Depends(get_db_session),
 ) -> Response:
     item = await _active_item_or_404(item_id, current_user.id, session)
-    item.deleted_at = datetime.now(timezone.utc)
+    if item.archived_at is None:
+        item.archived_at = datetime.now(timezone.utc)
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/{item_id}/restore", response_model=ClothingItemUploadResponse)
+async def restore_item(
+    item_id: UUID,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+) -> ClothingItemUploadResponse:
+    item = await _owned_item_or_404(item_id, current_user.id, session)
+    if item.archived_at is not None:
+        item.archived_at = None
+        await session.commit()
+        await session.refresh(item)
+    return _response(item)
 
 
 @router.delete("/{item_id}/permanent", status_code=status.HTTP_204_NO_CONTENT)
@@ -285,7 +308,9 @@ async def permanently_erase_item(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
 ) -> Response:
-    item = await _active_item_or_404(item_id, current_user.id, session)
+    item = await _owned_item_or_404(item_id, current_user.id, session)
+    if item.archived_at is None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Archive this item before deleting it forever")
     referenced_by_outfit = await session.scalar(
         select(OutfitItem.id).where(OutfitItem.clothing_item_id == item.id).limit(1)
     )

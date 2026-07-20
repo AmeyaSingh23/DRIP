@@ -13,7 +13,10 @@ from app.db.base import Base
 
 class Outfit(Base):
     __tablename__ = "outfits"
-    __table_args__ = (Index("ix_outfits_user_created_at", "user_id", "created_at"),)
+    __table_args__ = (
+        Index("ix_outfits_user_archived", "user_id", "archived_at"),
+        Index("ix_outfits_user_created_at", "user_id", "created_at"),
+    )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -28,6 +31,7 @@ class Outfit(Base):
         server_default=text("'[]'::jsonb"),
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP"))
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class OutfitItem(Base):
@@ -39,6 +43,6 @@ class OutfitItem(Base):
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     outfit_id: Mapped[UUID] = mapped_column(ForeignKey("outfits.id", ondelete="CASCADE"), nullable=False, index=True)
-    # No cascade: soft-deleted clothes remain available to historical flatlays.
+    # No cascade: archived clothes remain available to historical flatlays.
     clothing_item_id: Mapped[UUID] = mapped_column(ForeignKey("clothing_items.id", ondelete="RESTRICT"), nullable=False, index=True)
     display_order: Mapped[int] = mapped_column(Integer, nullable=False)

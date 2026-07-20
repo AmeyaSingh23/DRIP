@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user, get_db_session
 from app.api.v1.routes.items import _response
 from app.db.models.clothing_item import ClothingItem
+from app.db.models.calendar_entry import CalendarEntry
 from app.db.models.outfit import Outfit, OutfitItem
 from app.db.models.user import User
 from app.schemas.outfit import (
@@ -51,7 +52,7 @@ async def _active_items(
             select(ClothingItem).where(
                 ClothingItem.id.in_(item_ids),
                 ClothingItem.user_id == user_id,
-                ClothingItem.deleted_at.is_(None),
+                ClothingItem.archived_at.is_(None),
             )
         )
     ).all()
@@ -71,6 +72,7 @@ def _outfit_response(outfit: Outfit, items: list[ClothingItem]) -> OutfitRespons
         occasion=outfit.occasion,
         is_ai_generated=outfit.is_ai_generated,
         created_at=outfit.created_at,
+        archived_at=outfit.archived_at,
         item_layout=outfit.item_layout or [],
         items=[_response(item) for item in items],
     )
@@ -148,13 +150,17 @@ async def preview_weather_context(
 
 @router.get("", response_model=list[OutfitResponse])
 async def list_outfits(
+    archived: bool = Query(default=False),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
 ) -> list[OutfitResponse]:
     outfits = (
         await session.scalars(
             select(Outfit)
-            .where(Outfit.user_id == current_user.id)
+            .where(
+                Outfit.user_id == current_user.id,
+                Outfit.archived_at.is_not(None) if archived else Outfit.archived_at.is_(None),
+            )
             .order_by(Outfit.created_at.desc())
             .limit(100)
         )
@@ -173,6 +179,8 @@ async def get_outfit(
     session: AsyncSession = Depends(get_db_session),
 ) -> OutfitResponse:
     outfit, items = await _outfit_with_items(outfit_id, current_user.id, session)
+    if outfit.archived_at is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Restore this outfit before editing it")
     return _outfit_response(outfit, items)
 
 
@@ -222,6 +230,40 @@ async def delete_outfit(
     session: AsyncSession = Depends(get_db_session),
 ) -> Response:
     outfit, _ = await _outfit_with_items(outfit_id, current_user.id, session)
+    if outfit.archived_at is None:
+        outfit.archived_at = datetime.now(timezone.utc)
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/{outfit_id}/restore", response_model=OutfitResponse)
+async def restore_outfit(
+    outfit_id: UUID,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+) -> OutfitResponse:
+    outfit, items = await _outfit_with_items(outfit_id, current_user.id, session)
+    if outfit.archived_at is not None:
+        outfit.archived_at = None
+        await session.commit()
+        await session.refresh(outfit)
+    return _outfit_response(outfit, items)
+
+
+@router.delete("/{outfit_id}/permanent", status_code=status.HTTP_204_NO_CONTENT)
+async def permanently_delete_outfit(
+    outfit_id: UUID,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+) -> Response:
+    outfit, _ = await _outfit_with_items(outfit_id, current_user.id, session)
+    if outfit.archived_at is None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Archive this outfit before deleting it forever")
+    referenced = await session.scalar(
+        select(CalendarEntry.id).where(CalendarEntry.outfit_id == outfit.id).limit(1)
+    )
+    if referenced is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This outfit is scheduled in your calendar. Clear those calendar entries before deleting it forever.")
     await session.delete(outfit)
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -237,7 +279,7 @@ async def generate_outfit(
         await session.scalars(
             select(ClothingItem).where(
                 ClothingItem.user_id == current_user.id,
-                ClothingItem.deleted_at.is_(None),
+                ClothingItem.archived_at.is_(None),
             )
         )
     ).all()

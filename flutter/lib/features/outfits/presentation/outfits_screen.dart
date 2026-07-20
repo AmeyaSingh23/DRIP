@@ -65,9 +65,9 @@ class _OutfitsScreenState extends State<OutfitsScreen> {
       context: context,
       builder:
           (context) => AlertDialog(
-            title: const Text('Delete outfit?'),
+            title: const Text('Archive outfit?'),
             content: Text(
-              'Delete ${outfit.name ?? 'this outfit'}? Your wardrobe items stay untouched.',
+              'Archive ${outfit.name ?? 'this outfit'}? It stays linked to existing calendar entries.',
             ),
             actions: [
               TextButton(
@@ -76,8 +76,7 @@ class _OutfitsScreenState extends State<OutfitsScreen> {
               ),
               FilledButton(
                 onPressed: () => Navigator.pop(context, true),
-                style: FilledButton.styleFrom(backgroundColor: Colors.red),
-                child: const Text('Delete'),
+                child: const Text('Archive'),
               ),
             ],
           ),
@@ -85,7 +84,7 @@ class _OutfitsScreenState extends State<OutfitsScreen> {
     if (confirmed != true || !mounted) return;
     setState(() => _deletingId = outfit.id);
     try {
-      await _repository.delete(token: widget.token, outfitId: outfit.id);
+      await _repository.archive(token: widget.token, outfitId: outfit.id);
       await _load();
     } on DioException catch (error) {
       if (mounted) {
@@ -95,7 +94,7 @@ class _OutfitsScreenState extends State<OutfitsScreen> {
             content: Text(
               data is Map && data['detail'] is String
                   ? data['detail'] as String
-                  : 'Could not delete outfit. Please try again.',
+                  : 'Could not archive outfit. Please try again.',
             ),
           ),
         );

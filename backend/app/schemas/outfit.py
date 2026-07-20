@@ -127,5 +127,6 @@ class OutfitResponse(BaseModel):
     occasion: str | None = None
     is_ai_generated: bool
     created_at: datetime
+    archived_at: datetime | None = None
     item_layout: list[OutfitItemLayout] = Field(default_factory=list)
     items: list[ClothingItemUploadResponse] = Field(default_factory=list)

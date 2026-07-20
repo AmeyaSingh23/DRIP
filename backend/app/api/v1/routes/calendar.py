@@ -31,7 +31,7 @@ def _response(entry: CalendarEntry, outfit_name: str | None = None) -> CalendarE
 
 async def _owned_outfit(outfit_id: UUID, user_id: UUID, session: AsyncSession) -> Outfit:
     outfit = await session.scalar(select(Outfit).where(Outfit.id == outfit_id, Outfit.user_id == user_id))
-    if outfit is None:
+    if outfit is None or outfit.archived_at is not None:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Selected outfit is unavailable")
     return outfit
 

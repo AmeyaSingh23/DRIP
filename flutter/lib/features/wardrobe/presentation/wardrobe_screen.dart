@@ -128,23 +128,14 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
     return 'Could not update your wardrobe. Please try again.';
   }
 
-  Future<void> _delete(
-    ClothingItemDraft item, {
-    required bool permanent,
-  }) async {
+  Future<void> _archive(ClothingItemDraft item) async {
     if (_deleting) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder:
           (context) => AlertDialog(
-            title: Text(
-              permanent ? 'Permanently erase item?' : 'Remove from wardrobe?',
-            ),
-            content: Text(
-              permanent
-                  ? 'This removes the image from Cloudinary and cannot be undone.'
-                  : 'This hides the item from your wardrobe while preserving saved outfit history.',
-            ),
+            title: const Text('Archive item?'),
+            content: const Text('This hides the item from your wardrobe while preserving saved outfit and calendar history.'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
@@ -152,11 +143,7 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
               ),
               FilledButton(
                 onPressed: () => Navigator.pop(context, true),
-                style:
-                    permanent
-                        ? FilledButton.styleFrom(backgroundColor: Colors.red)
-                        : null,
-                child: Text(permanent ? 'Erase permanently' : 'Remove'),
+                child: const Text('Archive'),
               ),
             ],
           ),
@@ -164,14 +151,7 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
     if (confirmed != true) return;
     setState(() => _deleting = true);
     try {
-      if (permanent) {
-        await _repository.permanentlyErase(
-          itemId: item.id,
-          token: widget.token,
-        );
-      } else {
-        await _repository.softDelete(itemId: item.id, token: widget.token);
-      }
+      await _repository.archive(itemId: item.id, token: widget.token);
       ref.read(wardrobeRevisionProvider.notifier).notifyChanged();
       await _load();
     } on DioException catch (error) {
@@ -194,25 +174,11 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
               children: [
                 ListTile(
                   leading: const Icon(Icons.remove_circle_outline),
-                  title: const Text('Remove from wardrobe'),
-                  subtitle: const Text('Preserves saved outfit history'),
+                  title: const Text('Archive item'),
+                  subtitle: const Text('Preserves saved outfit and calendar history'),
                   onTap: () {
                     Navigator.pop(sheetContext);
-                    _delete(item, permanent: false);
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(
-                    Icons.delete_forever_outlined,
-                    color: Colors.red,
-                  ),
-                  title: const Text(
-                    'Permanently erase',
-                    style: TextStyle(color: Colors.red),
-                  ),
-                  onTap: () {
-                    Navigator.pop(sheetContext);
-                    _delete(item, permanent: true);
+                    _archive(item);
                   },
                 ),
               ],

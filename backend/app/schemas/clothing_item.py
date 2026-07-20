@@ -38,6 +38,7 @@ class ClothingItemUploadResponse(ClothingItemTags):
     ai_confidence: float = Field(ge=0.0, le=1.0)
     user_verified: bool
     created_at: datetime
+    archived_at: datetime | None = None
 
 
 class OutfitUsage(BaseModel):

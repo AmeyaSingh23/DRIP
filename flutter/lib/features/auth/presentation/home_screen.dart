@@ -73,7 +73,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           OutfitsScreen(token: widget.token),
           CreativeSpaceScreen(token: widget.token),
           CalendarScreen(token: widget.token),
-          ProfileScreen(email: widget.email),
+          ProfileScreen(email: widget.email, token: widget.token),
         ],
       ),
       bottomNavigationBar: NavigationBar(

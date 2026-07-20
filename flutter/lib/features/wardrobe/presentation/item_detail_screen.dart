@@ -110,7 +110,7 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
     }
   }
 
-  Future<void> _delete({required bool permanent}) async {
+  Future<void> _archive() async {
     if (_mutating) return;
     final item = _item;
     if (item == null) return;
@@ -118,26 +118,16 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
       context: context,
       builder:
           (context) => AlertDialog(
-            title: Text(
-              permanent ? 'Permanently erase item?' : 'Remove from wardrobe?',
-            ),
-            content: Text(
-              permanent
-                  ? 'This removes the image from Cloudinary and cannot be undone.'
-                  : 'This hides the item while preserving saved outfit and calendar history.',
-            ),
+            title: const Text('Archive item?'),
+            content: const Text('This hides the item while preserving saved outfit and calendar history.'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
                 child: const Text('Cancel'),
               ),
               FilledButton(
-                style:
-                    permanent
-                        ? FilledButton.styleFrom(backgroundColor: Colors.red)
-                        : null,
                 onPressed: () => Navigator.pop(context, true),
-                child: Text(permanent ? 'Erase permanently' : 'Remove'),
+                child: const Text('Archive'),
               ),
             ],
           ),
@@ -145,14 +135,7 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
     if (confirmed != true) return;
     setState(() => _mutating = true);
     try {
-      if (permanent) {
-        await _repository.permanentlyErase(
-          itemId: item.id,
-          token: widget.token,
-        );
-      } else {
-        await _repository.softDelete(itemId: item.id, token: widget.token);
-      }
+      await _repository.archive(itemId: item.id, token: widget.token);
       ref.read(wardrobeRevisionProvider.notifier).notifyChanged();
       if (mounted) Navigator.pop(context, true);
     } on DioException catch (error) {
@@ -222,16 +205,12 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
             if (item != null)
               PopupMenuButton<bool>(
                 enabled: !_mutating,
-                onSelected: (permanent) => _delete(permanent: permanent),
+                onSelected: (_) => _archive(),
                 itemBuilder:
                     (context) => const [
                       PopupMenuItem(
                         value: false,
-                        child: Text('Remove from wardrobe'),
-                      ),
-                      PopupMenuItem(
-                        value: true,
-                        child: Text('Permanently erase'),
+                        child: Text('Archive item'),
                       ),
                     ],
               ),

@@ -125,12 +125,14 @@ final class WardrobeRepository {
     required String token,
     String? category,
     String? search,
+    bool archived = false,
   }) async {
     final response = await _client.dio.get<List<dynamic>>(
       '/api/v1/items',
       queryParameters: {
         if (category != null && category != 'All') 'category': category,
         if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
+        if (archived) 'archived': true,
       },
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
@@ -162,7 +164,7 @@ final class WardrobeRepository {
     return ClothingItemUsage.fromJson(response.data!);
   }
 
-  Future<void> softDelete({required String itemId, required String token}) =>
+  Future<void> archive({required String itemId, required String token}) =>
       _client.dio.delete<void>(
         '/api/v1/items/$itemId',
         options: Options(headers: {'Authorization': 'Bearer $token'}),
@@ -175,4 +177,15 @@ final class WardrobeRepository {
     '/api/v1/items/$itemId/permanent',
     options: Options(headers: {'Authorization': 'Bearer $token'}),
   );
+
+  Future<ClothingItemDraft> restore({
+    required String itemId,
+    required String token,
+  }) async {
+    final response = await _client.dio.post<Map<String, dynamic>>(
+      '/api/v1/items/$itemId/restore',
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+    return ClothingItemDraft.fromJson(response.data!);
+  }
 }
