@@ -4,11 +4,14 @@ import asyncio
 import base64
 import json
 import logging
+from dataclasses import dataclass, field
+from datetime import date, timezone
+from datetime import datetime as dt
 
-from fastapi import HTTPException, status
-from google import genai
-from google.genai import types
-from google.genai.errors import APIError
+from fastapi import HTTPException, status  # type: ignore
+from google import genai  # type: ignore
+from google.genai import types  # type: ignore
+from google.genai.errors import APIError  # type: ignore
 
 from app.core.config import get_settings
 from app.schemas.clothing_item import ClothingItemTags
@@ -62,9 +65,135 @@ _COLOR_KEYWORDS: tuple[tuple[str, str], ...] = (
 )
 
 
-def _is_rate_limited(error: Exception) -> bool:
-    return getattr(error, "code", None) == 429 or "quota" in str(error).casefold()
+# ---------------------------------------------------------------------------
+# Key pool — module-level, survives across requests within one process
+# ---------------------------------------------------------------------------
 
+@dataclass
+class _KeyState:
+    daily_exhausted: bool = False
+    exhausted_date: date | None = None
+
+
+@dataclass
+class _KeyPool:
+    """Tracks per-key daily-exhaustion state for Gemini API keys."""
+
+    keys: list[str] = field(default_factory=list)
+    _states: list[_KeyState] = field(default_factory=list, init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        self._states = [_KeyState() for _ in self.keys]
+
+    @property
+    def is_configured(self) -> bool:
+        return len(self.keys) > 0
+
+    def available_keys(self) -> list[tuple[int, str]]:
+        """Return (index, key) pairs for keys not marked exhausted today."""
+        today = dt.now(timezone.utc).date()
+        available: list[tuple[int, str]] = []
+        for index, (key, key_state) in enumerate(zip(self.keys, self._states)):
+            if key_state.daily_exhausted and key_state.exhausted_date == today:
+                continue
+            # Auto-clear stale exhaustion from a previous day.
+            if key_state.daily_exhausted and key_state.exhausted_date != today:
+                key_state.daily_exhausted = False
+                key_state.exhausted_date = None
+            available.append((index, key))
+        return available
+
+    def mark_daily_exhausted(self, index: int) -> None:
+        today = dt.now(timezone.utc).date()
+        state = self._states[index]
+        state.daily_exhausted = True
+        state.exhausted_date = today
+        logger.info("Gemini key %d marked daily-exhausted for %s", index + 1, today)
+
+
+def _build_key_pool() -> _KeyPool:
+    settings = get_settings()
+    keys = settings.gemini_api_keys
+    if not keys:
+        logger.warning("No Gemini API keys configured — auto-tagging is disabled")
+    return _KeyPool(keys=keys)
+
+
+_key_pool = _build_key_pool()
+
+
+# ---------------------------------------------------------------------------
+# Error classification — uses structured details, not message text
+# ---------------------------------------------------------------------------
+
+_DAILY_RETRY_THRESHOLD_SECONDS = 300  # 5 minutes
+
+
+def _classify_error(error: APIError) -> str:
+    """Classify a Gemini APIError into an actionable category.
+
+    Returns one of: ``daily_exhausted``, ``short_limit``, ``overloaded``,
+    ``invalid_request``, ``config_error``, ``other``.
+    """
+    code = getattr(error, "code", None)
+
+    if code == 400:
+        return "invalid_request"
+    if code in {401, 403}:
+        return "config_error"
+    if code == 503:
+        return "overloaded"
+
+    if code == 429:
+        # Attempt structured detail inspection first.
+        details = getattr(error, "details", None)
+        if isinstance(details, (list, tuple)):
+            for detail_item in details:
+                if not isinstance(detail_item, dict):
+                    continue
+                at_type = str(detail_item.get("@type", ""))
+
+                # QuotaFailure → check quotaId in violations.
+                if "QuotaFailure" in at_type:
+                    violations = detail_item.get("violations", [])
+                    if isinstance(violations, (list, tuple)):
+                        for violation in violations:
+                            if not isinstance(violation, dict):
+                                continue
+                            quota_id = str(violation.get("quotaId", "")).casefold()
+                            if "perday" in quota_id:
+                                return "daily_exhausted"
+                            if "perminute" in quota_id:
+                                return "short_limit"
+
+                # RetryInfo → check retryDelay duration.
+                if "RetryInfo" in at_type:
+                    retry_delay = detail_item.get("retryDelay")
+                    seconds = _parse_duration_seconds(retry_delay)
+                    if seconds is not None and seconds >= _DAILY_RETRY_THRESHOLD_SECONDS:
+                        return "daily_exhausted"
+                    return "short_limit"
+
+        # No structured details available — treat as short-term limit.
+        return "short_limit"
+
+    return "other"
+
+
+def _parse_duration_seconds(value: object) -> float | None:
+    """Parse a protobuf-style duration string like ``'3600s'`` into seconds."""
+    if not isinstance(value, str):
+        return None
+    value = value.strip().rstrip("s").strip()
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Tag repair helpers (unchanged)
+# ---------------------------------------------------------------------------
 
 def _canonical(value: object, allowed: set[str], fallback: str | None = None) -> str | None:
     if not isinstance(value, str):
@@ -124,61 +253,100 @@ def _repair(raw: dict[str, object]) -> ClothingItemTags:
     )
 
 
+# ---------------------------------------------------------------------------
+# GeminiTagger — public interface unchanged
+# ---------------------------------------------------------------------------
+
 class GeminiTagger:
     def __init__(self) -> None:
-        settings = get_settings()
-        if not settings.gemini_api_key:
+        if not _key_pool.is_configured:
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Auto-tagging is temporarily unavailable.")
-        self._client = genai.Client(
-            api_key=settings.gemini_api_key,
-            http_options=types.HttpOptions(
-                retryOptions=types.HttpRetryOptions(
-                    attempts=1,
-                    httpStatusCodes=[408, 500, 502, 503, 504],
-                ),
-            ),
-        )
-        self._model = settings.gemini_model
+        self._model = get_settings().gemini_model
 
     async def tag(self, image_bytes: bytes, mime_type: str) -> ClothingItemTags:
-        def request() -> str:
-            interaction = self._client.interactions.create(
-                model=self._model,
-                input=[
-                    {"type": "text", "text": _PROMPT},
-                    {
-                        "type": "image",
-                        "data": base64.b64encode(image_bytes).decode("ascii"),
-                        "mime_type": mime_type,
-                        "resolution": "high",
-                    },
-                ],
-                response_format={"type": "text", "mime_type": "application/json", "schema": ClothingItemTags.model_json_schema()},
+        available = _key_pool.available_keys()
+        if not available:
+            logger.warning("All Gemini keys daily-exhausted")
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Auto-tagging is unavailable today. You can add details manually or try again tomorrow.",
             )
-            return interaction.output_text
 
-        response_text: str | None = None
-        for attempt in range(2):
+        image_b64 = base64.b64encode(image_bytes).decode("ascii")
+        all_daily = True  # Track whether every failure was daily exhaustion.
+
+        for key_index, api_key in available:
+            client = genai.Client(
+                api_key=api_key,
+                http_options=types.HttpOptions(
+                    retryOptions=types.HttpRetryOptions(
+                        attempts=1,
+                        httpStatusCodes=[],
+                    ),
+                ),
+            )
+
+            def request() -> str:
+                interaction = client.interactions.create(
+                    model=self._model,
+                    input=[
+                        {"type": "text", "text": _PROMPT},
+                        {
+                            "type": "image",
+                            "data": image_b64,
+                            "mime_type": mime_type,
+                            "resolution": "high",
+                        },
+                    ],
+                    response_format={"type": "text", "mime_type": "application/json", "schema": ClothingItemTags.model_json_schema()},
+                )
+                return interaction.output_text
+
             try:
                 response_text = await asyncio.to_thread(request)
-                break
             except APIError as error:
-                if error.code in {500, 502, 503, 504} and attempt == 0:
-                    await asyncio.sleep(1.0)
+                classification = _classify_error(error)
+                logger.warning("Gemini key %d error: code=%s classification=%s", key_index + 1, error.code, classification)
+
+                if classification == "invalid_request":
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail="Auto-tagging could not process this image. Try a different photo or add details manually.",
+                    ) from error
+
+                if classification == "config_error":
+                    raise HTTPException(
+                        status_code=status.HTTP_502_BAD_GATEWAY,
+                        detail="Auto-tagging is temporarily unavailable.",
+                    ) from error
+
+                if classification == "daily_exhausted":
+                    _key_pool.mark_daily_exhausted(key_index)
                     continue
-                if error.code == 429:
-                    logger.warning("Auto-tagging rate-limited")
-                    raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Auto-tagging is busy. Wait a minute, then try again or add the details manually.", headers={"Retry-After": "60"}) from error
-                logger.warning("Auto-tagging service error: code=%s", error.code)
-                raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Auto-tagging is temporarily unavailable. Add the details manually or try again.") from error
+
+                # short_limit, overloaded, other — move to next key.
+                all_daily = False
+                continue
             except Exception as error:
-                if _is_rate_limited(error):
-                    logger.warning("Auto-tagging rate-limited")
-                    raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Auto-tagging is busy. Wait a minute, then try again or add the details manually.", headers={"Retry-After": "60"}) from error
-                logger.warning("Auto-tagging request failed: %s", type(error).__name__)
-                raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Auto-tagging is temporarily unavailable. Add the details manually or try again.") from error
-        try:
-            parsed = json.loads(response_text)
-        except (TypeError, json.JSONDecodeError):
-            return ClothingItemTags()
-        return _repair(parsed if isinstance(parsed, dict) else {})
+                logger.warning("Gemini key %d unexpected error: %s", key_index + 1, type(error).__name__)
+                all_daily = False
+                continue
+
+            # Success — parse the response.
+            try:
+                parsed = json.loads(response_text)
+            except (TypeError, json.JSONDecodeError):
+                return ClothingItemTags()
+            return _repair(parsed if isinstance(parsed, dict) else {})
+
+        # All available keys failed.
+        if all_daily:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Auto-tagging is unavailable today. You can add details manually or try again tomorrow.",
+            )
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Auto-tagging is temporarily unavailable. Try again shortly or add details manually.",
+            headers={"Retry-After": "5"},
+        )

@@ -191,7 +191,8 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
           _status = _cutout != null ? 'Review item' : _idleStatus;
         });
         if (_cutout != null && _taggingImage != null) {
-          _startRetryCooldown(_retryAfterSeconds(error) ?? 2);
+          final cooldown = _retryAfterSeconds(error) ?? 0;
+          if (cooldown > 0) _startRetryCooldown(cooldown);
         }
       }
     } finally {
@@ -226,13 +227,11 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
   }
 
   int? _retryAfterSeconds(Object error) {
-    if (error is! DioException || error.response?.statusCode != 429) {
-      return null;
-    }
-    final seconds = int.tryParse(
-      error.response?.headers.value('retry-after') ?? '',
-    );
-    return seconds == null ? 60 : seconds.clamp(1, 300);
+    if (error is! DioException) return null;
+    final header = error.response?.headers.value('retry-after');
+    if (header == null) return null;
+    final seconds = int.tryParse(header);
+    return seconds == null ? null : seconds.clamp(1, 300);
   }
 
   void _startRetryCooldown(int seconds) {
@@ -314,7 +313,8 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
           _status = _cutout != null ? 'Review item' : _idleStatus;
         });
         if (_cutout != null && _taggingImage != null) {
-          _startRetryCooldown(_retryAfterSeconds(error) ?? 2);
+          final cooldown = _retryAfterSeconds(error) ?? 0;
+          if (cooldown > 0) _startRetryCooldown(cooldown);
         }
       }
     } finally {

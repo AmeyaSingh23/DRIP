@@ -1,7 +1,7 @@
 from functools import lru_cache
 
-from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field  # type: ignore
+from pydantic_settings import BaseSettings, SettingsConfigDict  # type: ignore
 
 
 class Settings(BaseSettings):
@@ -18,7 +18,9 @@ class Settings(BaseSettings):
     jwt_audience: str = "la-maison-de-miniso-mobile"
     cors_origins: list[str] = Field(default_factory=list)
     google_oauth_web_client_id: str | None = Field(default=None, validation_alias="GOOGLE_OAUTH_WEB_CLIENT_ID")
-    gemini_api_key: str | None = None
+    gemini_api_key_1: str | None = None
+    gemini_api_key_2: str | None = None
+    gemini_api_key_3: str | None = None
     gemini_model: str = "gemini-3.5-flash"
     groq_api_key: str | None = Field(default=None, validation_alias="GROQ_API_KEY")
     groq_outfit_model: str = "llama-3.3-70b-versatile"
@@ -27,6 +29,11 @@ class Settings(BaseSettings):
     cloudinary_api_key: str | None = None
     cloudinary_api_secret: str | None = None
     cron_secret: str | None = None
+
+    @property
+    def gemini_api_keys(self) -> list[str]:
+        """Ordered list of configured Gemini API keys (empty when none are set)."""
+        return [key for key in (self.gemini_api_key_1, self.gemini_api_key_2, self.gemini_api_key_3) if key]
 
 
 @lru_cache
