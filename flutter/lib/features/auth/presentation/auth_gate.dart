@@ -60,20 +60,12 @@ class _AuthRestoreScreenState extends State<_AuthRestoreScreen>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFFFF5F7), // Warm Cream
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
         children: [
-          // Full screen leopard texture
-          Positioned.fill(
-            child: Opacity(
-              opacity: 0.25, // slightly more visible for the nail contrast
-              child: Image.asset(
-                'assets/images/leopard_texture.png',
-                fit: BoxFit.cover,
-              ),
-            ),
-          ),
           SafeArea(
             child: Center(
               child: Column(
@@ -148,15 +140,21 @@ class _AuthRestoreScreenState extends State<_AuthRestoreScreen>
                                 ),
                                 // More Opaque Glass Hanger
                                 ShaderMask(
-                                  shaderCallback: (bounds) => const LinearGradient(
+                                  shaderCallback: (bounds) => LinearGradient(
                                     begin: Alignment.topLeft,
                                     end: Alignment.bottomRight,
-                                    colors: [
-                                      Color(0xFFFF8DA1), // Solid Baby Pink
-                                      Color(0xFFFFFFFF), // Solid White shine
-                                      Color(0xFFFF4E84), // Solid Hot Pink
-                                    ],
-                                    stops: [0.0, 0.5, 1.0],
+                                    colors: isDark 
+                                        ? const [
+                                            Color(0xFFFFB6C1), // Baby pink
+                                            Color(0xBBFFFFFF), // Soft white
+                                            Color(0xFFC2185B), // Deep rose
+                                          ]
+                                        : const [
+                                            Color(0xFFFF8DA1), // Solid Baby Pink
+                                            Color(0xFFFFFFFF), // Solid White shine
+                                            Color(0xFFFF4E84), // Solid Hot Pink
+                                          ],
+                                    stops: const [0.0, 0.5, 1.0],
                                   ).createShader(bounds),
                                   blendMode: BlendMode.srcIn,
                                   child: const Icon(

@@ -27,21 +27,12 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
   Widget build(BuildContext context) {
     final isSigningIn = ref.watch(authControllerProvider).isLoading;
     final colors = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFFF5F7), // Warm Cream
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
         children: [
-          Positioned.fill(
-            child: Opacity(
-              opacity: 0.15,
-              child: Image.asset(
-                'assets/images/leopard_texture.png',
-                fit: BoxFit.cover,
-              ),
-            ),
-          ),
-          
           SafeArea(
             child: Center(
               child: Padding(
@@ -53,15 +44,15 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(32),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.25),
+                        color: isDark ? Colors.black.withOpacity(0.2) : Colors.white.withOpacity(0.25),
                         borderRadius: BorderRadius.circular(24),
                         border: Border.all(
-                          color: Colors.white.withOpacity(0.6),
+                          color: isDark ? Colors.white.withOpacity(0.15) : Colors.white.withOpacity(0.6),
                           width: 1.5,
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFFFFB6C1).withOpacity(0.1),
+                            color: const Color(0xFFFFB6C1).withOpacity(isDark ? 0.05 : 0.1),
                             blurRadius: 24,
                             spreadRadius: 8,
                           )
@@ -77,7 +68,7 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
                                 borderRadius: BorderRadius.circular(24),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: const Color(0xFFFFB6C1).withOpacity(0.3),
+                                    color: const Color(0xFFFFB6C1).withOpacity(isDark ? 0.4 : 0.3),
                                     blurRadius: 16,
                                     offset: const Offset(0, 4),
                                   ),
@@ -101,7 +92,7 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
                               style: GoogleFonts.playfairDisplay(
                                 fontSize: 36,
                                 fontWeight: FontWeight.w600,
-                                color: const Color(0xFFC2185B), // Deep Rose
+                                color: isDark ? const Color(0xFFFFB6C1) : const Color(0xFFC2185B),
                                 height: 1.1,
                               ),
                               children: [
@@ -112,7 +103,7 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
                                     fontWeight: FontWeight.w900,
                                     fontStyle: FontStyle.italic,
                                     fontSize: 42,
-                                    color: const Color(0xFFC2185B),
+                                    color: isDark ? const Color(0xFFFFB6C1) : const Color(0xFFC2185B),
                                   ),
                                 ),
                               ],
@@ -123,7 +114,7 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
                             'Your wardrobe, ready when you are.',
                             style: GoogleFonts.dmSans(
                               fontSize: 16,
-                              color: const Color(0xFF5A4D51),
+                              color: isDark ? const Color(0xFFE0C4CA) : const Color(0xFF5A4D51),
                               fontWeight: FontWeight.w400,
                             ),
                             textAlign: TextAlign.center,
@@ -147,7 +138,7 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
                               child: ElevatedButton(
                                 onPressed: isSigningIn ? null : _signIn,
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFFFF6B9D), // Hot Pink
+                                  backgroundColor: isDark ? const Color(0xFFC2185B) : const Color(0xFFFF6B9D),
                                   foregroundColor: Colors.white,
                                   elevation: 0,
                                   shape: RoundedRectangleBorder(

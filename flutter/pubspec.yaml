@@ -26,6 +26,7 @@ dependencies:
   flutter_cache_manager: ^3.4.1
   geocoding: ^5.0.0
   google_fonts: ^8.2.0
+  shared_preferences: ^2.5.5
 
 dev_dependencies:
   flutter_test:
@@ -38,6 +39,7 @@ flutter:
   assets:
     - assets/images/female_dummy.png
     - assets/images/leopard_texture.png
+    - assets/images/dark_leopard_texture.png
     - assets/images/app_logo.jpg
 
 flutter_launcher_icons:
