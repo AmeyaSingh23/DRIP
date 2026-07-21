@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../core/network/api_client.dart';
 import '../../../core/widgets/cached_wardrobe_image.dart';
+import '../../../core/widgets/hanger_loading_indicator.dart';
+import '../../wardrobe/presentation/widgets/wardrobe_hanger_refresh.dart';
 import '../../wardrobe/domain/clothing_item_draft.dart';
 import '../../wardrobe/presentation/wardrobe_change_notifier.dart';
 import '../data/creative_repository.dart';
@@ -130,7 +133,7 @@ class _CreativeSpaceScreenState extends ConsumerState<CreativeSpaceScreen> {
   Future<void> _loadWardrobe() async {
     final epoch = ++_loadEpoch;
     setState(() {
-      _loading = true;
+      if (_items.isEmpty) _loading = true;
       _error = null;
     });
     try {
@@ -627,9 +630,12 @@ class _CreativeSpaceScreenState extends ConsumerState<CreativeSpaceScreen> {
                 ),
                 const SizedBox(height: 8),
                 Expanded(
-                  child: RefreshIndicator(
-                    onRefresh: _loadWardrobe,
-                    child: _itemList(),
+                  child: CustomScrollView(
+                    physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                    slivers: [
+                      WardrobeHangerRefreshControl(onRefresh: _loadWardrobe),
+                      _itemList(),
+                    ],
                   ),
                 ),
               ],
@@ -637,28 +643,34 @@ class _CreativeSpaceScreenState extends ConsumerState<CreativeSpaceScreen> {
   );
 
   Widget _itemList() {
-    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loading) return const SliverFillRemaining(child: Center(child: HangerLoadingIndicator()));
     if (_error != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: TextButton(
-            onPressed: _loadWardrobe,
-            child: const Text('Retry'),
+      return SliverFillRemaining(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: TextButton(
+              onPressed: _loadWardrobe,
+              child: const Text('Retry'),
+            ),
           ),
         ),
       );
     }
     final items = _filteredItems;
-    if (items.isEmpty) return const Center(child: Text('No items'));
-    return ListView.separated(
-      physics: const AlwaysScrollableScrollPhysics(),
+    if (items.isEmpty) return const SliverFillRemaining(child: Center(child: Text('No items')));
+    return SliverPadding(
       padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
-      itemCount: items.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 8),
-      itemBuilder:
-          (context, index) =>
-              SizedBox(height: 126, child: _draggableItem(items[index])),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            if (index.isOdd) return const SizedBox(height: 8);
+            final itemIndex = index ~/ 2;
+            return SizedBox(height: 126, child: _draggableItem(items[itemIndex]));
+          },
+          childCount: items.isEmpty ? 0 : items.length * 2 - 1,
+        ),
+      ),
     );
   }
 

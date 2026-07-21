@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../../core/widgets/hanger_loading_indicator.dart';
 import '../../outfits/data/outfit_repository.dart';
 import '../../outfits/domain/saved_outfit.dart';
 
@@ -191,7 +192,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
           Expanded(
             child:
                 _loading
-                    ? const Center(child: CircularProgressIndicator())
+                    ? const Center(child: HangerLoadingIndicator())
                     : _error != null
                     ? ListView(
                       children: [

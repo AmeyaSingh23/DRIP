@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'hanger_loading_indicator.dart';
 
 final _wardrobeCache = CacheManager(
   Config(
@@ -39,7 +40,7 @@ class CachedWardrobeImage extends StatelessWidget {
     width: width,
     height: height,
     fadeInDuration: const Duration(milliseconds: 120),
-    placeholder: (_, _) => const Center(child: CircularProgressIndicator()),
+    placeholder: (_, _) => const Center(child: HangerLoadingIndicator(size: 40)),
     errorWidget: (_, _, _) => const Icon(Icons.image_not_supported),
   );
 }

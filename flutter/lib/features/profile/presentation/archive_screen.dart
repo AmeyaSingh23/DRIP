@@ -5,10 +5,12 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../../core/widgets/cached_wardrobe_image.dart';
+import '../../../core/widgets/hanger_loading_indicator.dart';
 import '../../outfits/data/outfit_repository.dart';
 import '../../outfits/domain/saved_outfit.dart';
 import '../../wardrobe/data/wardrobe_repository.dart';
 import '../../wardrobe/domain/clothing_item_draft.dart';
+import '../../wardrobe/presentation/widgets/wardrobe_hanger_refresh.dart';
 import '../../wardrobe/presentation/wardrobe_change_notifier.dart';
 
 class ArchiveScreen extends ConsumerStatefulWidget {
@@ -35,7 +37,7 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
 
   Future<void> _load() async {
     setState(() {
-      _loading = true;
+      if (_items.isEmpty && _outfitsList.isEmpty) _loading = true;
       _error = null;
     });
     try {
@@ -116,74 +118,79 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
     child: Scaffold(
       appBar: AppBar(title: const Text('Archive'), bottom: const TabBar(tabs: [Tab(text: 'Items'), Tab(text: 'Outfits')])),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: HangerLoadingIndicator())
           : _error != null
           ? Center(child: FilledButton(onPressed: _load, child: const Text('Try again')))
           : TabBarView(children: [_itemsTab(), _outfitsTab()]),
     ),
   );
 
-  Widget _itemsTab() => RefreshIndicator(
-    onRefresh: _load,
-    child: _items.isEmpty ? ListView(children: const [SizedBox(height: 140), Center(child: Text('No archived items.'))]) : ListView.builder(
-      itemCount: _items.length,
-      itemBuilder: (context, index) {
-        final item = _items[index];
-        return Card(
-          margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-          child: ListTile(
-            onTap: () => context.push('/wardrobe/items/${item.id}', extra: widget.token),
-            leading: SizedBox(width: 56, height: 64, child: CachedWardrobeImage(url: item.cloudinaryUrl)),
-            title: Text(item.itemName ?? item.category),
-            subtitle: Text(item.category),
-            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-              FilledButton(onPressed: () => _restoreItem(item), child: const Text('Restore')),
-              PopupMenuButton<String>(onSelected: (_) => _deleteItem(item), itemBuilder: (_) => const [PopupMenuItem(value: 'delete', child: Text('Delete forever'))]),
-            ]),
+  Widget _itemsTab() => CustomScrollView(
+    physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+    slivers: [
+      WardrobeHangerRefreshControl(onRefresh: _load),
+      if (_items.isEmpty)
+        SliverFillRemaining(hasScrollBody: false, child: Column(children: const [SizedBox(height: 140), Center(child: Text('No archived items.'))]))
+      else
+        SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, index) {
+              final item = _items[index];
+              return Card(
+                margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                child: ListTile(
+                  onTap: () => context.push('/wardrobe/items/${item.id}', extra: widget.token),
+                  leading: SizedBox(width: 56, height: 64, child: CachedWardrobeImage(url: item.cloudinaryUrl)),
+                  title: Text(item.itemName ?? item.category),
+                  subtitle: Text(item.category),
+                  trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                    FilledButton(onPressed: () => _restoreItem(item), child: const Text('Restore')),
+                    PopupMenuButton<String>(onSelected: (_) => _deleteItem(item), itemBuilder: (_) => const [PopupMenuItem(value: 'delete', child: Text('Delete forever'))]),
+                  ]),
+                ),
+              );
+            },
+            childCount: _items.length,
           ),
-        );
-      },
-    ),
+        ),
+    ],
   );
-
-  Widget _outfitsTab() => RefreshIndicator(
-    onRefresh: _load,
-    child: _outfitsList.isEmpty ? ListView(children: const [SizedBox(height: 140), Center(child: Text('No archived outfits.'))]) : ListView.builder(
-      itemCount: _outfitsList.length,
-      itemBuilder: (context, index) {
-        final outfit = _outfitsList[index];
-        return Card(
-          margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: () => context.push('/outfits/${outfit.id}', extra: widget.token),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  Expanded(child: Text(outfit.name ?? 'Untitled outfit', style: Theme.of(context).textTheme.titleMedium)),
-                  FilledButton(onPressed: () => _restoreOutfit(outfit), child: const Text('Restore')),
-                  PopupMenuButton<String>(onSelected: (_) => _deleteOutfit(outfit), itemBuilder: (_) => const [PopupMenuItem(value: 'delete', child: Text('Delete forever'))]),
-                ]),
-                if (outfit.occasion != null) Text(outfit.occasion!, style: Theme.of(context).textTheme.bodySmall),
-                const SizedBox(height: 10),
-                SizedBox(
-                  height: 112,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: outfit.items.length,
-                    separatorBuilder: (_, _) => const SizedBox(width: 8),
-                    itemBuilder: (_, itemIndex) => AspectRatio(
-                      aspectRatio: .75,
-                      child: CachedWardrobeImage(url: outfit.items[itemIndex].cloudinaryUrl),
-                    ),
+  Widget _outfitsTab() => CustomScrollView(
+    physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+    slivers: [
+      WardrobeHangerRefreshControl(onRefresh: _load),
+      if (_outfitsList.isEmpty)
+        SliverFillRemaining(hasScrollBody: false, child: Column(children: const [SizedBox(height: 140), Center(child: Text('No archived outfits.'))]))
+      else
+        SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, index) {
+              final outfit = _outfitsList[index];
+              return Card(
+                margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => context.push('/outfits/${outfit.id}', extra: widget.token),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Row(children: [
+                        Expanded(child: Text(outfit.name ?? 'Untitled outfit', style: Theme.of(context).textTheme.titleMedium)),
+                        PopupMenuButton<String>(onSelected: (_) => _deleteOutfit(outfit), itemBuilder: (_) => const [PopupMenuItem(value: 'delete', child: Text('Delete forever'))]),
+                      ]),
+                      const SizedBox(height: 8),
+                      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                        Text('${outfit.items.length} items', style: Theme.of(context).textTheme.bodySmall),
+                        FilledButton(onPressed: () => _restoreOutfit(outfit), child: const Text('Restore')),
+                      ]),
+                    ]),
                   ),
                 ),
-              ]),
-            ),
+              );
+            },
+            childCount: _outfitsList.length,
           ),
-        );
-      },
-    ),
+        ),
+    ],
   );
 }

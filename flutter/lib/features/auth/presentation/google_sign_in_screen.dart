@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'auth_controller.dart';
+import '../../../core/widgets/hanger_loading_indicator.dart';
 
 class GoogleSignInScreen extends ConsumerStatefulWidget {
   const GoogleSignInScreen({super.key});
@@ -146,14 +147,7 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
                                   ),
                                 ),
                                 child: isSigningIn
-                                    ? const SizedBox(
-                                        width: 24,
-                                        height: 24,
-                                        child: CircularProgressIndicator(
-                                          color: Colors.white,
-                                          strokeWidth: 2.5,
-                                        ),
-                                      )
+                                    ? const HangerLoadingIndicator(size: 24)
                                     : Row(
                                         mainAxisAlignment: MainAxisAlignment.center,
                                         children: [

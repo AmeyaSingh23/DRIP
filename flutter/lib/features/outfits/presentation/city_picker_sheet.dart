@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../data/outfit_repository.dart';
 import '../domain/outfit_weather.dart';
+import '../../../core/widgets/hanger_loading_indicator.dart';
 
 class CityPickerSheet extends StatefulWidget {
   const CityPickerSheet({required this.token, required this.repository, super.key});
@@ -93,7 +94,7 @@ class _CityPickerSheetState extends State<CityPickerSheet> {
               suffixIcon: _loading
                   ? const Padding(
                       padding: EdgeInsets.all(12),
-                      child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                      child: SizedBox(width: 24, height: 24, child: HangerLoadingIndicator(size: 24.0)),
                     )
                   : null,
             ),

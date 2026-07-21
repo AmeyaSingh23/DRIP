@@ -5,9 +5,11 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../../core/widgets/cached_wardrobe_image.dart';
+import '../../../core/widgets/hanger_loading_indicator.dart';
 import '../data/wardrobe_repository.dart';
 import '../domain/clothing_item_draft.dart';
 import '../domain/clothing_item_usage.dart';
+import 'widgets/wardrobe_hanger_refresh.dart';
 import 'wardrobe_item_editor_dialog.dart';
 import 'wardrobe_change_notifier.dart';
 
@@ -43,7 +45,7 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
   Future<void> _load() async {
     final requestEpoch = ++_loadEpoch;
     setState(() {
-      _loading = true;
+      if (_item == null) _loading = true;
       _error = null;
     });
     try {
@@ -218,7 +220,7 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
         ),
         body:
             _loading
-                ? const Center(child: CircularProgressIndicator())
+                ? const Center(child: HangerLoadingIndicator())
                 : _error != null
                 ? Center(
                   child: FilledButton.icon(
@@ -229,11 +231,14 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
                 )
                 : item == null || usage == null
                 ? const SizedBox.shrink()
-                : RefreshIndicator(
-                  onRefresh: _load,
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-                    children: [
+                : CustomScrollView(
+                  physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                  slivers: [
+                    WardrobeHangerRefreshControl(onRefresh: _load),
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+                      sliver: SliverList(
+                        delegate: SliverChildListDelegate([
                       Container(
                         height: 330,
                         decoration: BoxDecoration(
@@ -311,9 +316,11 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
                             ),
                           ),
                         ),
-                    ],
+                    ]),
                   ),
                 ),
+              ],
+            ),
       ),
     );
   }

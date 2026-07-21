@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../../core/widgets/cached_wardrobe_image.dart';
+import '../../../core/widgets/hanger_loading_indicator.dart';
+import '../../wardrobe/presentation/widgets/wardrobe_hanger_refresh.dart';
 import '../data/outfit_repository.dart';
 import '../domain/saved_outfit.dart';
 
@@ -33,7 +35,7 @@ class _OutfitsScreenState extends State<OutfitsScreen> {
   Future<void> _load() async {
     final requestEpoch = ++_loadEpoch;
     setState(() {
-      _loading = true;
+      if (_outfits.isEmpty) _loading = true;
       _error = null;
     });
     try {
@@ -119,31 +121,40 @@ class _OutfitsScreenState extends State<OutfitsScreen> {
         ),
       ],
     ),
-    body: RefreshIndicator(
-      onRefresh: _load,
-      child:
-          _loading
-              ? const Center(child: CircularProgressIndicator())
-              : _error != null
-              ? ListView(
-                children: [
-                  const SizedBox(height: 140),
-                  Center(child: Text(_error!)),
-                ],
-              )
-              : _outfits.isEmpty
-              ? ListView(
-                children: const [
-                  SizedBox(height: 140),
-                  Center(
-                    child: Text('No saved outfits yet. Create one with ✨.'),
-                  ),
-                ],
-              )
-              : ListView.builder(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
-                itemCount: _outfits.length,
-                itemBuilder: (context, index) {
+    body: CustomScrollView(
+      physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+      slivers: [
+        WardrobeHangerRefreshControl(onRefresh: _load),
+        if (_loading)
+          const SliverFillRemaining(child: Center(child: HangerLoadingIndicator()))
+        else if (_error != null)
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: Column(
+              children: [
+                const SizedBox(height: 140),
+                Center(child: Text(_error!)),
+              ],
+            ),
+          )
+        else if (_outfits.isEmpty)
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: Column(
+              children: const [
+                SizedBox(height: 140),
+                Center(
+                  child: Text('No saved outfits yet. Create one with ✨.'),
+                ),
+              ],
+            ),
+          )
+        else
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
                   final outfit = _outfits[index];
                   return InkWell(
                     onLongPress:
@@ -198,7 +209,11 @@ class _OutfitsScreenState extends State<OutfitsScreen> {
                     ),
                   );
                 },
+                childCount: _outfits.length,
               ),
+            ),
+          ),
+      ],
     ),
   );
 }

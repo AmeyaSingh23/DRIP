@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../../core/widgets/cached_wardrobe_image.dart';
+import '../../../core/widgets/hanger_loading_indicator.dart';
 import '../../creative/presentation/creative_space_screen.dart';
 import '../data/outfit_repository.dart';
 import '../domain/saved_outfit.dart';
@@ -185,7 +186,7 @@ class _OutfitDetailScreenState extends State<OutfitDetailScreen> {
             _error != null
                 ? Center(child: Text(_error!))
                 : outfit == null
-                ? const Center(child: CircularProgressIndicator())
+                ? const Center(child: HangerLoadingIndicator())
                 : ListView(
                   padding: const EdgeInsets.all(16),
                   children: [

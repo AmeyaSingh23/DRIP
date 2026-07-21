@@ -63,7 +63,7 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
   Future<void> _load() async {
     final requestEpoch = ++_loadEpoch;
     setState(() {
-      _loading = true;
+      if (_items.isEmpty) _loading = true;
       _error = null;
     });
     try {
@@ -137,20 +137,68 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
     if (_deleting) return;
     final confirmed = await showDialog<bool>(
       context: context,
+      barrierColor: Colors.black26,
       builder:
-          (context) => AlertDialog(
-            title: const Text('Archive item?'),
-            content: const Text('This hides the item from your wardrobe while preserving saved outfit and calendar history.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
+          (context) => Dialog(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            insetPadding: const EdgeInsets.all(24),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(28),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                child: Container(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey[900]!.withOpacity(0.50)
+                      : Colors.white.withOpacity(0.50),
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Archive item?',
+                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurface,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'This hides the item from your wardrobe while preserving saved outfit and calendar history.',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            style: TextButton.styleFrom(
+                              foregroundColor: Theme.of(context).colorScheme.onSurface,
+                            ),
+                            child: const Text('Cancel'),
+                          ),
+                          const SizedBox(width: 8),
+                          FilledButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: Theme.of(context).colorScheme.onSurface,
+                              foregroundColor: Theme.of(context).brightness == Brightness.dark
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Theme.of(context).colorScheme.onPrimary,
+                            ),
+                            child: const Text('Archive'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Archive'),
-              ),
-            ],
+            ),
           ),
     );
     if (confirmed != true) return;
@@ -173,20 +221,34 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
   void _showActions(ClothingItemDraft item) {
     showModalBottomSheet<void>(
       context: context,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black26,
+      elevation: 0,
       builder:
-          (sheetContext) => SafeArea(
-            child: Wrap(
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.remove_circle_outline),
-                  title: const Text('Archive item'),
-                  subtitle: const Text('Preserves saved outfit and calendar history'),
-                  onTap: () {
-                    Navigator.pop(sheetContext);
-                    _archive(item);
-                  },
+          (sheetContext) => ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+              child: Container(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.grey[900]!.withOpacity(0.50)
+                    : Colors.white.withOpacity(0.50),
+                child: SafeArea(
+                  child: Wrap(
+                    children: [
+                      ListTile(
+                        leading: Icon(Icons.remove_circle_outline, color: Theme.of(context).colorScheme.onSurface),
+                        title: Text('Archive item', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+                        subtitle: Text('Preserves saved outfit and calendar history', style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7))),
+                        onTap: () {
+                          Navigator.pop(sheetContext);
+                          _archive(item);
+                        },
+                      ),
+                    ],
+                  ),
                 ),
-              ],
+              ),
             ),
           ),
     );
@@ -198,10 +260,8 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
     final items = _filteredItems;
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-        slivers: [
-          WardrobeHangerRefreshControl(onRefresh: _load),
+      body: NestedScrollView(
+        headerSliverBuilder: (context, innerBoxIsScrolled) => [
           SliverAppBar(
             pinned: true,
             backgroundColor: Colors.transparent,
@@ -262,6 +322,11 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
               ),
             ),
           ),
+        ],
+        body: CustomScrollView(
+          physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+          slivers: [
+            WardrobeHangerRefreshControl(onRefresh: _load),
           if (_error != null)
             SliverFillRemaining(
               hasScrollBody: false,
@@ -393,7 +458,8 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
                 ),
               ),
             ),
-        ],
+          ],
+        ),
       ),
     );
   }
