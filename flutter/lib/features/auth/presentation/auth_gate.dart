@@ -26,26 +26,158 @@ class AuthGate extends ConsumerWidget {
   }
 }
 
-class _AuthRestoreScreen extends StatelessWidget {
+class _AuthRestoreScreen extends StatefulWidget {
   const _AuthRestoreScreen();
 
   @override
-  Widget build(BuildContext context) => const Scaffold(
-    body: SafeArea(
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('La Maison de Miniso'),
-            SizedBox(height: 16),
-            SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
+  State<_AuthRestoreScreen> createState() => _AuthRestoreScreenState();
 }
+
+class _AuthRestoreScreenState extends State<_AuthRestoreScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    // A gentle swinging pendulum animation for the clothes hanger
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+
+    _animation = Tween<double>(begin: -0.05, end: 0.05).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOutSine),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFFFF5F7), // Warm Cream
+      body: Stack(
+        children: [
+          // Full screen leopard texture
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.25, // slightly more visible for the nail contrast
+              child: Image.asset(
+                'assets/images/leopard_texture.png',
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // App Logo
+                  Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFFFB6C1).withOpacity(0.4),
+                          blurRadius: 20,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(24),
+                      child: Image.asset(
+                        'assets/images/app_logo.jpg',
+                        width: 140,
+                        height: 140,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 64),
+                  
+                  // Custom Wardrobe Loader: Glassmorphism Hanger on a Nail
+                  SizedBox(
+                    height: 100,
+                    child: Stack(
+                      alignment: Alignment.topCenter,
+                      children: [
+                        // The Nail stuck in the wall (BEHIND the hanger)
+                        Positioned(
+                          top: 20,
+                          child: Container(
+                            width: 10,
+                            height: 10,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF6D5D61), // Dark metallic
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black45,
+                                  blurRadius: 2,
+                                  offset: Offset(0, 1),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        // The Hanger (Swinging in FRONT of the nail)
+                        Positioned(
+                          top: 3,
+                          child: RotationTransition(
+                            turns: _animation,
+                            alignment: const Alignment(0, -0.65),
+                            child: Stack(
+                              alignment: Alignment.topCenter,
+                              children: [
+                                // Glass Drop Shadow
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 6, left: 4),
+                                  child: Icon(
+                                    Icons.checkroom_rounded,
+                                    size: 72,
+                                    color: Colors.black.withOpacity(0.25),
+                                  ),
+                                ),
+                                // More Opaque Glass Hanger
+                                ShaderMask(
+                                  shaderCallback: (bounds) => const LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [
+                                      Color(0xFFFF8DA1), // Solid Baby Pink
+                                      Color(0xFFFFFFFF), // Solid White shine
+                                      Color(0xFFFF4E84), // Solid Hot Pink
+                                    ],
+                                    stops: [0.0, 0.5, 1.0],
+                                  ).createShader(bounds),
+                                  blendMode: BlendMode.srcIn,
+                                  child: const Icon(
+                                    Icons.checkroom_rounded,
+                                    size: 72,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
