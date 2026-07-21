@@ -260,8 +260,9 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
     final items = _filteredItems;
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: NestedScrollView(
-        headerSliverBuilder: (context, innerBoxIsScrolled) => [
+      body: CustomScrollView(
+        physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+        slivers: [
           SliverAppBar(
             pinned: true,
             backgroundColor: Colors.transparent,
@@ -322,11 +323,7 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
               ),
             ),
           ),
-        ],
-        body: CustomScrollView(
-          physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-          slivers: [
-            WardrobeHangerRefreshControl(onRefresh: _load),
+          WardrobeHangerRefreshControl(onRefresh: _load),
           if (_error != null)
             SliverFillRemaining(
               hasScrollBody: false,
@@ -459,7 +456,6 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
               ),
             ),
           ],
-        ),
       ),
     );
   }
