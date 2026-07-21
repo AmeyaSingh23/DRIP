@@ -71,15 +71,15 @@ class _CreativeSpaceScreenState extends ConsumerState<CreativeSpaceScreen> {
   final _repository = CreativeRepository();
   final _transform = TransformationController();
   final _canvasKey = GlobalKey();
-  final Map<_CanvasZone, ClothingItemDraft> _placed = {};
-  final Map<_CanvasZone, Offset> _itemOffsets = {};
-  final Map<_CanvasZone, double> _itemScales = {};
+  final Map<String, ClothingItemDraft> _placed = {};
+  final Map<String, Offset> _itemOffsets = {};
+  final Map<String, double> _itemScales = {};
   List<ClothingItemDraft> _items = const [];
   String _selectedCategory = 'All';
   String _outfitName = 'Styled outfit';
   String? _occasion;
   String? _saveIdempotencyKey;
-  _CanvasZone? _selectedZone;
+  String? _selectedItemId;
   Offset _longPressStartOffset = Offset.zero;
   bool _sidebarCollapsed = false;
   bool _loading = true;
@@ -109,11 +109,10 @@ class _CreativeSpaceScreenState extends ConsumerState<CreativeSpaceScreen> {
     final restoredIds = <String>{};
     for (final layout in widget.initialLayout ?? const <OutfitItemLayout>[]) {
       final item = itemById[layout.itemId];
-      final zone = _zoneFromLayout(layout.zone);
-      if (item == null || zone == null) continue;
-      _placed[zone] = item;
-      _itemOffsets[zone] = Offset(layout.offsetX, layout.offsetY);
-      _itemScales[zone] = layout.scale;
+      if (item == null) continue;
+      _placed[item.id] = item;
+      _itemOffsets[item.id] = Offset(layout.offsetX, layout.offsetY);
+      _itemScales[item.id] = layout.scale;
       restoredIds.add(item.id);
     }
     for (final item in initialItems) {
@@ -140,17 +139,16 @@ class _CreativeSpaceScreenState extends ConsumerState<CreativeSpaceScreen> {
       setState(() {
         _items = items;
         final activeIds = items.map((item) => item.id).toSet();
-        final missingZones = _placed.entries
-            .where((entry) => !activeIds.contains(entry.value.id))
-            .map((entry) => entry.key)
+        final missingIds = _placed.keys
+            .where((id) => !activeIds.contains(id))
             .toList();
-        for (final zone in missingZones) {
-          _placed.remove(zone);
-          _itemOffsets.remove(zone);
-          _itemScales.remove(zone);
+        for (final id in missingIds) {
+          _placed.remove(id);
+          _itemOffsets.remove(id);
+          _itemScales.remove(id);
         }
-        if (_selectedZone != null && !_placed.containsKey(_selectedZone)) {
-          _selectedZone = null;
+        if (_selectedItemId != null && !_placed.containsKey(_selectedItemId)) {
+          _selectedItemId = null;
         }
         if (!_categories.contains(_selectedCategory)) _selectedCategory = 'All';
       });
@@ -320,19 +318,18 @@ class _CreativeSpaceScreenState extends ConsumerState<CreativeSpaceScreen> {
   };
 
   void _autoPlace(ClothingItemDraft item) {
-    final zone = _zoneFor(item);
-    _placed[zone] = item;
-    _itemOffsets[zone] = Offset.zero;
-    _itemScales[zone] = 1;
+    _placed[item.id] = item;
+    _itemOffsets[item.id] = Offset.zero;
+    _itemScales[item.id] = 1;
   }
 
   // ignore: unused_element
-  void _place(ClothingItemDraft item, _CanvasZone zone) {
+  void _place(ClothingItemDraft item) {
     setState(() {
       _saveIdempotencyKey = null;
-      _placed[zone] = item;
-      _itemOffsets[zone] = Offset.zero;
-      _itemScales[zone] = 1;
+      _placed[item.id] = item;
+      _itemOffsets[item.id] = Offset.zero;
+      _itemScales[item.id] = 1;
     });
   }
 
@@ -344,113 +341,91 @@ class _CreativeSpaceScreenState extends ConsumerState<CreativeSpaceScreen> {
     final rect = _zoneRect(zone, item);
     setState(() {
       _saveIdempotencyKey = null;
-      _placed[zone] = item;
-      _itemOffsets[zone] =
+      _placed[item.id] = item;
+      _itemOffsets[item.id] =
           scenePoint == null ? Offset.zero : scenePoint - rect.center;
-      _itemScales[zone] = 1;
+      _itemScales[item.id] = 1;
     });
   }
 
-  void _startMove(_CanvasZone zone) {
+  void _startMove(String itemId) {
     setState(() {
-      _selectedZone = zone;
-      _longPressStartOffset = _itemOffsets[zone] ?? Offset.zero;
+      _selectedItemId = itemId;
+      _longPressStartOffset = _itemOffsets[itemId] ?? Offset.zero;
     });
   }
 
-  void _moveItem(_CanvasZone zone, LongPressMoveUpdateDetails details) {
+  void _moveItem(String itemId, LongPressMoveUpdateDetails details) {
     final scale = _transform.value.getMaxScaleOnAxis();
     setState(() {
       _saveIdempotencyKey = null;
-      _selectedZone = zone;
-      _itemOffsets[zone] =
+      _selectedItemId = itemId;
+      _itemOffsets[itemId] =
           _longPressStartOffset + details.offsetFromOrigin / scale;
     });
   }
 
   void _nudge(Offset delta) {
-    final zone = _selectedZone;
-    if (zone == null || !_placed.containsKey(zone)) return;
+    final itemId = _selectedItemId;
+    if (itemId == null || !_placed.containsKey(itemId)) return;
     setState(() {
       _saveIdempotencyKey = null;
-      _itemOffsets[zone] = (_itemOffsets[zone] ?? Offset.zero) + delta;
+      _itemOffsets[itemId] = (_itemOffsets[itemId] ?? Offset.zero) + delta;
     });
   }
 
   void _resizeSelected(double factor) {
-    final zone = _selectedZone;
-    if (zone == null || !_placed.containsKey(zone)) return;
+    final itemId = _selectedItemId;
+    if (itemId == null || !_placed.containsKey(itemId)) return;
     setState(() {
       _saveIdempotencyKey = null;
-      _itemScales[zone] =
-          ((_itemScales[zone] ?? 1) * factor).clamp(.4, 2.4).toDouble();
+      _itemScales[itemId] =
+          ((_itemScales[itemId] ?? 1) * factor).clamp(.4, 2.4).toDouble();
     });
   }
 
   void _deselectIfOutside(PointerDownEvent event) {
-    final zone = _selectedZone;
-    if (zone == null) return;
+    final itemId = _selectedItemId;
+    if (itemId == null) return;
+    final item = _placed[itemId];
+    if (item == null) return;
     final scenePoint = _transform.toScene(event.localPosition);
-    final baseRect = _zoneRect(zone, _placed[zone]);
-    final scale = _itemScales[zone] ?? 1;
+    final baseRect = _zoneRect(_zoneFor(item), item);
+    final scale = _itemScales[itemId] ?? 1;
     final itemBounds = Rect.fromCenter(
-      center: baseRect.center + (_itemOffsets[zone] ?? Offset.zero),
+      center: baseRect.center + (_itemOffsets[itemId] ?? Offset.zero),
       width: baseRect.width * scale,
       height: baseRect.height * scale,
     );
     if (!itemBounds.contains(scenePoint)) {
-      setState(() => _selectedZone = null);
+      setState(() => _selectedItemId = null);
     }
   }
 
-  void _remove(_CanvasZone zone) {
-    final item = _placed[zone];
+  void _remove(String itemId) {
     setState(() {
       _saveIdempotencyKey = null;
-      if (item == null) {
-        _placed.remove(zone);
-        _itemOffsets.remove(zone);
-        _itemScales.remove(zone);
-      } else {
-        final matching =
-            _placed.entries
-                .where((entry) => entry.value.id == item.id)
-                .map((entry) => entry.key)
-                .toList();
-        for (final matchingZone in matching) {
-          _placed.remove(matchingZone);
-          _itemOffsets.remove(matchingZone);
-          _itemScales.remove(matchingZone);
-        }
-        if (matching.contains(_selectedZone)) _selectedZone = null;
-      }
+      _placed.remove(itemId);
+      _itemOffsets.remove(itemId);
+      _itemScales.remove(itemId);
+      if (_selectedItemId == itemId) _selectedItemId = null;
     });
   }
 
-  List<ClothingItemDraft> get _placedItems {
-    final seen = <String>{};
-    return _CanvasZone.values
-        .map((zone) => _placed[zone])
-        .whereType<ClothingItemDraft>()
-        .where((item) => seen.add(item.id))
-        .toList();
-  }
+  List<ClothingItemDraft> get _placedItems => _placed.values.toList();
 
   List<OutfitItemLayout> get _itemLayout =>
-      _CanvasZone.values
-          .map((zone) {
-            final item = _placed[zone];
-            if (item == null) return null;
-            final offset = _itemOffsets[zone] ?? Offset.zero;
+      _placed.values
+          .map((item) {
+            final offset = _itemOffsets[item.id] ?? Offset.zero;
             return OutfitItemLayout(
               itemId: item.id,
-              zone: _layoutZone(zone),
+              zone: _layoutZone(_zoneFor(item)),
               offsetX: offset.dx,
               offsetY: offset.dy,
-              scale: _itemScales[zone] ?? 1,
+              scale: _itemScales[item.id] ?? 1,
             );
           })
-          .whereType<OutfitItemLayout>()
           .toList();
 
   Future<void> _save() async {
@@ -514,7 +489,7 @@ class _CreativeSpaceScreenState extends ConsumerState<CreativeSpaceScreen> {
       _placed.clear();
       _itemOffsets.clear();
       _itemScales.clear();
-      _selectedZone = null;
+      _selectedItemId = null;
     });
   }
 
@@ -761,7 +736,7 @@ class _CreativeSpaceScreenState extends ConsumerState<CreativeSpaceScreen> {
                       ),
                 ),
               ),
-              if (_selectedZone != null && _placed.containsKey(_selectedZone))
+              if (_selectedItemId != null && _placed.containsKey(_selectedItemId))
                 Positioned(right: 12, bottom: 12, child: _nudgeControls()),
             ],
           ),
@@ -779,46 +754,46 @@ class _CreativeSpaceScreenState extends ConsumerState<CreativeSpaceScreen> {
         rect: _dummyRect,
         child: IgnorePointer(child: _croppedDummy()),
       ),
-      _placedLayer(_CanvasZone.accessories),
-      _placedLayer(_CanvasZone.shoes),
-      _placedLayer(_CanvasZone.bottoms),
-      _placedLayer(_CanvasZone.tops),
-      _placedLayer(_CanvasZone.outerwear),
-      ..._CanvasZone.values.where(_placed.containsKey).map(_removeButton),
+      ..._placedLayerItems(_CanvasZone.accessories),
+      ..._placedLayerItems(_CanvasZone.shoes),
+      ..._placedLayerItems(_CanvasZone.bottoms),
+      ..._placedLayerItems(_CanvasZone.tops),
+      ..._placedLayerItems(_CanvasZone.outerwear),
+      ..._placed.keys.map(_removeButton),
     ],
   );
 
-  Widget _placedLayer(_CanvasZone zone) => Positioned.fromRect(
-    rect: _zoneRect(zone, _placed[zone]),
-    child: _placedItem(zone),
-  );
+  Iterable<Widget> _placedLayerItems(_CanvasZone zone) =>
+      _placed.values.where((item) => _zoneFor(item) == zone).map(_placedItem);
 
-  Widget _placedItem(_CanvasZone zone) {
-    final item = _placed[zone];
-    if (item == null) return const SizedBox.expand();
-    return Transform.translate(
-      offset: _itemOffsets[zone] ?? Offset.zero,
-      child: Transform.scale(
-        alignment: Alignment.center,
-        scale: _itemScales[zone] ?? 1,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onLongPressStart: (_) => _startMove(zone),
-          onLongPressMoveUpdate: (details) => _moveItem(zone, details),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              border:
-                  _selectedZone == zone
-                      ? Border.all(
-                        color: Theme.of(context).colorScheme.primary,
-                        width: 3,
-                      )
-                      : null,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(3),
-              child: CachedWardrobeImage(url: item.cloudinaryUrl),
+  Widget _placedItem(ClothingItemDraft item) {
+    final zone = _zoneFor(item);
+    return Positioned.fromRect(
+      rect: _zoneRect(zone, item),
+      child: Transform.translate(
+        offset: _itemOffsets[item.id] ?? Offset.zero,
+        child: Transform.scale(
+          alignment: Alignment.center,
+          scale: _itemScales[item.id] ?? 1,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onLongPressStart: (_) => _startMove(item.id),
+            onLongPressMoveUpdate: (details) => _moveItem(item.id, details),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                border:
+                    _selectedItemId == item.id
+                        ? Border.all(
+                          color: Theme.of(context).colorScheme.primary,
+                          width: 3,
+                        )
+                        : null,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(3),
+                child: CachedWardrobeImage(url: item.cloudinaryUrl),
+              ),
             ),
           ),
         ),
@@ -826,10 +801,11 @@ class _CreativeSpaceScreenState extends ConsumerState<CreativeSpaceScreen> {
     );
   }
 
-  Widget _removeButton(_CanvasZone zone) {
-    final rect = _zoneRect(zone, _placed[zone]);
-    final offset = _itemOffsets[zone] ?? Offset.zero;
-    final scale = _itemScales[zone] ?? 1;
+  Widget _removeButton(String itemId) {
+    final item = _placed[itemId]!;
+    final rect = _zoneRect(_zoneFor(item), item);
+    final offset = _itemOffsets[itemId] ?? Offset.zero;
+    final scale = _itemScales[itemId] ?? 1;
     return Positioned(
       left: rect.center.dx + offset.dx + rect.width * scale / 2 - 20,
       top: rect.center.dy + offset.dy - rect.height * scale / 2 - 12,
@@ -838,7 +814,7 @@ class _CreativeSpaceScreenState extends ConsumerState<CreativeSpaceScreen> {
         shape: const CircleBorder(),
         child: InkWell(
           customBorder: const CircleBorder(),
-          onTap: () => _remove(zone),
+          onTap: () => _remove(itemId),
           child: const Padding(
             padding: EdgeInsets.all(5),
             child: Icon(Icons.close, size: 17, color: Colors.white),

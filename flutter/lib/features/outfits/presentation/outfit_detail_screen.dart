@@ -176,7 +176,7 @@ class _OutfitDetailScreenState extends State<OutfitDetailScreen> {
             if (outfit != null && !outfit.isArchived)
               IconButton(
                 onPressed: _deleting ? null : _delete,
-                icon: const Icon(Icons.delete_outline),
+                icon: const Icon(Icons.archive_outlined),
                 tooltip: 'Archive outfit',
               ),
           ],

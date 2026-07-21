@@ -24,6 +24,7 @@ dependencies:
   image_cropper: ^12.2.1
   cached_network_image: ^3.4.1
   flutter_cache_manager: ^3.4.1
+  geocoding: ^5.0.0
 
 dev_dependencies:
   flutter_test:

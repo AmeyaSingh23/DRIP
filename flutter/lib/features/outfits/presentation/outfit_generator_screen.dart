@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geocoding/geocoding.dart' as geocoding;
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
@@ -37,6 +39,7 @@ class _OutfitGeneratorScreenState extends State<OutfitGeneratorScreen> {
   final _notes = TextEditingController();
   DateTime _wearAt = DateTime.now();
   OutfitLocation? _location;
+  bool _isCurrentLocation = false;
   OutfitWeatherContext? _weatherContext;
   _WeatherState _weatherState = _WeatherState.idle;
   CancelToken? _weatherCancelToken;
@@ -117,15 +120,31 @@ class _OutfitGeneratorScreenState extends State<OutfitGeneratorScreen> {
           timeLimit: Duration(seconds: 10),
         ),
       );
+      String locationName = 'Current location';
+      try {
+        final placemarks = await geocoding.Geocoding().placemarkFromCoordinates(
+          position.latitude,
+          position.longitude,
+        );
+        if (placemarks.isNotEmpty) {
+          final p = placemarks.first;
+          final parts = [p.locality, p.administrativeArea]
+              .where((s) => s != null && s.isNotEmpty)
+              .toList();
+          if (parts.isNotEmpty) {
+            locationName = parts.join(', ');
+          }
+        }
+      } catch (_) {}
       if (!mounted) return;
-      setState(
-        () =>
-            _location = OutfitLocation(
-              name: 'Current location',
-              latitude: position.latitude,
-              longitude: position.longitude,
-            ),
-      );
+      setState(() {
+        _isCurrentLocation = true;
+        _location = OutfitLocation(
+          name: locationName,
+          latitude: position.latitude,
+          longitude: position.longitude,
+        );
+      });
       _weatherInputsChanged();
     } on _LocationMessage catch (error) {
       if (mounted) {
@@ -152,7 +171,10 @@ class _OutfitGeneratorScreenState extends State<OutfitGeneratorScreen> {
           (_) => CityPickerSheet(token: widget.token, repository: _repository),
     );
     if (location == null || !mounted) return;
-    setState(() => _location = location);
+    setState(() {
+      _isCurrentLocation = false;
+      _location = location;
+    });
     _weatherInputsChanged();
   }
 
@@ -405,7 +427,9 @@ class _OutfitGeneratorScreenState extends State<OutfitGeneratorScreen> {
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.place_outlined),
-                title: Text(_location!.name),
+                title: Text(
+                  _isCurrentLocation ? 'Current location' : _location!.name,
+                ),
                 subtitle: const Text(
                   'Used only to check weather for this outfit',
                 ),
@@ -415,7 +439,10 @@ class _OutfitGeneratorScreenState extends State<OutfitGeneratorScreen> {
                       busy
                           ? null
                           : () {
-                            setState(() => _location = null);
+                            setState(() {
+                              _location = null;
+                              _isCurrentLocation = false;
+                            });
                             _weatherInputsChanged();
                           },
                   icon: const Icon(Icons.close),
