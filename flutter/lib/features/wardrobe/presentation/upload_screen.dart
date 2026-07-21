@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui';
 import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
@@ -15,6 +16,7 @@ import '../data/wardrobe_repository.dart';
 import '../domain/clothing_tag_result.dart';
 import 'cutout_editor_screen.dart';
 import 'wardrobe_change_notifier.dart';
+import '../../../core/widgets/hanger_loading_indicator.dart';
 
 final class UploadRouteArgs {
   const UploadRouteArgs({required this.token, required this.email});
@@ -59,6 +61,11 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
   DateTime? _retryAvailableAt;
 
   @override
+  void initState() {
+    super.initState();
+  }
+
+  @override
   void dispose() {
     final cutout = _cutout;
     if (cutout != null) {
@@ -100,9 +107,6 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
     try {
       final picked = await _picker.pickImage(
         source: source,
-        imageQuality: 95,
-        maxWidth: 1920,
-        maxHeight: 1920,
       );
       if (picked == null) {
         if (mounted) {
@@ -125,6 +129,10 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
         return;
       }
       if (mounted) {
+        _name.clear();
+        _customCategory.clear();
+        _color.clear();
+        _category = 'Custom';
         setState(() => _status = 'Removing background...');
       }
       cutoutSource = await _prepareForCutout(edited);
@@ -323,6 +331,7 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
   }
 
   Future<void> _save() async {
+    FocusScope.of(context).unfocus();
     final cutout = _cutout;
     if (cutout == null || _busy) {
       return;
@@ -456,134 +465,359 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
   @override
   Widget build(BuildContext context) => PopScope(
     canPop: !_busy,
-    child: Scaffold(
+    child: GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: const Text('Add to wardrobe'),
         automaticallyImplyLeading: !_busy,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        flexibleSpace: ClipRRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+            child: Container(
+              color: Theme.of(context).colorScheme.surface,
+            ),
+          ),
+        ),
       ),
       body: SafeArea(
-        child: ListView(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
-          children: [
-            Text(_status, style: Theme.of(context).textTheme.titleMedium),
-            if (_error != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: Text(_error!, style: const TextStyle(color: Colors.red)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(_status, style: Theme.of(context).textTheme.titleMedium),
+              if (_error != null) _errorBox(_error!),
+              if (_wornItemDetected) _wornWarning(),
+              if (_cutout != null) _reviewForm(),
+              if (_cutout == null && !_busy) ...[
+                const SizedBox(height: 16),
+                _guidance(),
+                const SizedBox(height: 16),
+                _glassButton(
+                onPressed: _busy ? null : () => _choose(ImageSource.camera),
+                icon: Icons.camera_alt,
+                label: 'Take photo',
+                isGlass: true,
               ),
-            if (_wornItemDetected) _wornWarning(),
-            if (_cutout != null) _reviewForm(),
-            if (_cutout == null && !_busy) ...[
-              _guidance(),
-              const SizedBox(height: 16),
-              FilledButton.icon(
-                onPressed: () => _choose(ImageSource.camera),
-                icon: const Icon(Icons.camera_alt),
-                label: const Text('Take photo'),
+              const SizedBox(height: 12),
+              _glassButton(
+                onPressed: _busy ? null : () => _choose(ImageSource.gallery),
+                icon: Icons.photo_library,
+                label: 'Choose from gallery',
+                isGlass: true,
               ),
-              OutlinedButton.icon(
-                onPressed: () => _choose(ImageSource.gallery),
-                icon: const Icon(Icons.photo_library),
-                label: const Text('Choose from gallery'),
-              ),
+              ],
+              if (_busy && _cutout == null)
+                const Padding(
+                  padding: EdgeInsets.only(top: 60),
+                  child: Center(child: HangerLoadingIndicator()),
+                ),
             ],
-            if (_busy)
-              const Padding(
-                padding: EdgeInsets.only(top: 20),
-                child: LinearProgressIndicator(),
-              ),
-          ],
+          ),
+        ),
+      ),
+    ),
+    ),
+  );
+
+  Widget _errorBox(String message) => Padding(
+    padding: const EdgeInsets.only(top: 12),
+    child: ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        color: Colors.red.withOpacity(Theme.of(context).brightness == Brightness.dark ? 0.3 : 0.2),
+        child: Text(
+          message,
+          style: TextStyle(
+            color: Theme.of(context).brightness == Brightness.dark ? Colors.red[200] : Colors.red[900],
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
     ),
   );
 
-  Widget _guidance() => Container(
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      color: const Color(0xFFF5F1FA),
+  Widget _guidance() => Padding(
+    padding: const EdgeInsets.only(top: 12),
+    child: ClipRRect(
       borderRadius: BorderRadius.circular(12),
-    ),
-    child: const Text(
-      'For a clean cutout, photograph one item laid flat or hanging on a contrasting background.',
-    ),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        color: Theme.of(context).colorScheme.surface,
+        child: Row(
+            children: [
+              Icon(Icons.lightbulb_outline, color: Theme.of(context).colorScheme.onSurface),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'For a clean cutout, photograph one item laid flat or hanging on a contrasting background.',
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w500),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
   );
+
   Widget _wornWarning() => Padding(
     padding: const EdgeInsets.only(top: 12),
-    child: Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF3E0),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: const Text(
-        'We detected this item is being worn.\nFor a clean cutout, try photographing it flat or on a hanger instead.',
+    child: ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        color: Colors.orange.withOpacity(Theme.of(context).brightness == Brightness.dark ? 0.3 : 0.2),
+        child: Text(
+          'We detected this item is being worn.\nFor a clean cutout, try photographing it flat or on a hanger instead.',
+          style: TextStyle(
+            color: Theme.of(context).brightness == Brightness.dark ? Colors.orange[200] : Colors.orange[900],
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
     ),
   );
+
+  InputDecoration _glassInputDecoration(String hint, {bool isDropdown = false}) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
+      filled: true,
+      fillColor: Colors.transparent,
+      counterText: "",
+      suffixIcon: _status == 'Identifying garment...' ? Padding(
+        padding: const EdgeInsets.all(12),
+        child: SizedBox(
+          width: 20, height: 20,
+          child: CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.onSurface),
+        ),
+      ) : isDropdown ? Icon(Icons.arrow_drop_down, color: Theme.of(context).colorScheme.onSurface) : null,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 2),
+      ),
+    );
+  }
+
+  Widget _fieldLabel(String label) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6, left: 4),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.onSurface,
+          fontWeight: FontWeight.w600,
+          fontSize: 15,
+        ),
+      ),
+    );
+  }
+
+  void _showCategoryPicker() {
+    FocusScope.of(context).unfocus();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+          child: Container(
+            color: Theme.of(context).brightness == Brightness.dark
+                ? Colors.grey[900]!.withOpacity(0.85)
+                : Colors.white.withOpacity(0.85),
+            child: SafeArea(
+              child: ListView(
+                shrinkWrap: true,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                children: _categories.map((c) => ListTile(
+                  title: Text(c, style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w500)),
+                  onTap: () {
+                    setState(() => _category = c);
+                    Navigator.pop(context);
+                  },
+                )).toList(),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _glassButton({
+    required VoidCallback? onPressed,
+    IconData? icon,
+    required String label,
+    Color? backgroundColor,
+    Color? textColor,
+    bool isGlass = false,
+  }) {
+    final bgColor = isGlass
+        ? (Theme.of(context).brightness == Brightness.dark ? Colors.grey[900]!.withOpacity(0.50) : Colors.white.withOpacity(0.50))
+        : (backgroundColor ?? Theme.of(context).colorScheme.primary);
+    final fgColor = isGlass
+        ? Theme.of(context).colorScheme.onSurface
+        : (textColor ?? Theme.of(context).colorScheme.onPrimary);
+    
+    Widget buttonBody = Material(
+      color: onPressed == null ? bgColor.withOpacity(0.3) : bgColor,
+      child: InkWell(
+        onTap: onPressed,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, color: onPressed == null ? fgColor.withOpacity(0.5) : fgColor),
+                const SizedBox(width: 8),
+              ],
+              Text(
+                label,
+                style: TextStyle(
+                  color: onPressed == null ? fgColor.withOpacity(0.5) : fgColor,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (isGlass) {
+      return RepaintBoundary(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+            child: buttonBody,
+          ),
+        ),
+      );
+    }
+    
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: buttonBody,
+    );
+  }
+
+  Widget _glassField({required Widget child}) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        color: Theme.of(context).colorScheme.surface,
+        child: child,
+      ),
+    );
+  }
+
+  Widget _charCounter(TextEditingController controller, int max) {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: ValueListenableBuilder(
+        valueListenable: controller,
+        builder: (context, value, child) => Padding(
+          padding: const EdgeInsets.only(top: 4, right: 4),
+          child: Text(
+            '${value.text.length}/$max',
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7), fontSize: 12),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _reviewForm() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       const SizedBox(height: 16),
       Image.file(_cutout!, height: 230),
       const SizedBox(height: 16),
-      TextField(
-        controller: _name,
-        maxLength: 120,
-        decoration: const InputDecoration(labelText: 'Name'),
-      ),
-      const SizedBox(height: 10),
-      DropdownButtonFormField<String>(
-        key: ValueKey(_category),
-        initialValue: _category,
-        isExpanded: true,
-        decoration: const InputDecoration(labelText: 'Category'),
-        items:
-            _categories
-                .map(
-                  (category) =>
-                      DropdownMenuItem(value: category, child: Text(category)),
-                )
-                .toList(),
-        onChanged:
-            _busy
-                ? null
-                : (value) {
-                  if (value != null) {
-                    setState(() => _category = value);
-                  }
-                },
-      ),
-      if (_category == 'Custom') ...[
-        const SizedBox(height: 10),
-        TextField(
-          controller: _customCategory,
-          maxLength: 100,
-          decoration: const InputDecoration(labelText: 'Custom category'),
+      _fieldLabel('Name'),
+      _glassField(
+        child: TextField(
+          controller: _name,
+          maxLength: 120,
+          decoration: _glassInputDecoration('Enter item name'),
+          style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+          enabled: !_busy,
         ),
-      ],
-      const SizedBox(height: 10),
-      TextField(
-        controller: _color,
-        maxLength: 50,
-        decoration: const InputDecoration(labelText: 'Color'),
       ),
-      const SizedBox(height: 20),
-      if (_taggingImage != null) ...[
-        OutlinedButton.icon(
-          onPressed: _busy || _retrySeconds > 0 ? null : _retryAutoTag,
-          icon: const Icon(Icons.refresh),
-          label: Text(
-            _retrySeconds > 0
-                ? 'Retry auto-tagging in ${_retrySeconds}s'
-                : 'Retry auto-tagging',
+      _charCounter(_name, 120),
+      const SizedBox(height: 10),
+      _fieldLabel('Category'),
+      _glassField(
+        child: InkWell(
+          onTap: _busy ? null : _showCategoryPicker,
+          child: InputDecorator(
+            decoration: _glassInputDecoration('Select a category', isDropdown: true),
+            isEmpty: _category.isEmpty,
+            child: Text(_category, style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
           ),
         ),
-        const SizedBox(height: 10),
+      ),
+      if (_category == 'Custom') ...[
+        const SizedBox(height: 16),
+        _fieldLabel('Custom Category'),
+        _glassField(
+          child: TextField(
+            controller: _customCategory,
+            maxLength: 100,
+            decoration: _glassInputDecoration('Enter custom category'),
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+            enabled: !_busy,
+          ),
+        ),
+        _charCounter(_customCategory, 100),
       ],
-      FilledButton(
+      const SizedBox(height: 16),
+      _fieldLabel('Color'),
+      _glassField(
+        child: TextField(
+          controller: _color,
+          maxLength: 50,
+          decoration: _glassInputDecoration('Enter color'),
+          style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+          enabled: !_busy,
+        ),
+      ),
+      _charCounter(_color, 50),
+      const SizedBox(height: 24),
+      if (_error != null && _taggingImage != null) ...[
+        _glassButton(
+          onPressed: _busy || _retrySeconds > 0 ? null : _retryAutoTag,
+          icon: Icons.refresh,
+          label: _retrySeconds > 0
+                ? 'Retry auto-tagging in ${_retrySeconds}s'
+                : 'Retry auto-tagging',
+          backgroundColor: Theme.of(context).colorScheme.errorContainer,
+          textColor: Theme.of(context).colorScheme.onErrorContainer,
+        ),
+        const SizedBox(height: 12),
+      ],
+      _glassButton(
         onPressed: _busy ? null : _save,
-        child: const Text('Save item'),
+        label: _status == 'Saving item...' ? 'Saving...' : 'Save item',
+        backgroundColor: Theme.of(context).colorScheme.secondary,
+        textColor: Theme.of(context).brightness == Brightness.dark ? Colors.black : Colors.white,
       ),
     ],
   );

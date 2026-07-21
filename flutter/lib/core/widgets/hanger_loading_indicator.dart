@@ -42,7 +42,8 @@ class _HangerLoadingIndicatorState extends State<HangerLoadingIndicator> with Si
         children: [
           // The Nail stuck in the wall
           Positioned(
-            top: widget.size * 0.2, // proportional position for nail
+            top: (widget.size * 0.2) + 2, // proportional position for nail + 2px down
+
             child: Container(
               width: widget.size * 0.1,
               height: widget.size * 0.1,

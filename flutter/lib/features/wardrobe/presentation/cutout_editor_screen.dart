@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
@@ -81,28 +82,53 @@ class _CutoutEditorScreenState extends State<CutoutEditorScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
+    backgroundColor: Colors.transparent,
     appBar: AppBar(
       title: const Text('Adjust photo'),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      flexibleSpace: ClipRRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+          child: Container(color: Theme.of(context).colorScheme.surface),
+        ),
+      ),
       actions: [
         TextButton(
           onPressed: _editing ? null : () => Navigator.pop(context, _current),
-          child: const Text('Continue'),
+          style: TextButton.styleFrom(
+            foregroundColor: Theme.of(context).colorScheme.onSurface,
+          ),
+          child: const Text('Continue', style: TextStyle(fontWeight: FontWeight.bold)),
         ),
       ],
     ),
     body: SafeArea(
       child: Column(
         children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(24, 16, 24, 8),
-            child: Text(
-              'Crop tightly while keeping the full garment in frame. Your original photo won’t be changed.',
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+            child: RepaintBoundary(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    color: Theme.of(context).colorScheme.surface,
+                    child: Text(
+                      'Crop tightly while keeping the full garment in frame. Your original photo won’t be changed.',
+                      style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
           Expanded(
             child: Container(
               margin: const EdgeInsets.all(24),
-              color: const Color(0xFFFAFAF8),
               alignment: Alignment.center,
               child: InteractiveViewer(
                 minScale: 0.5,
@@ -111,7 +137,7 @@ class _CutoutEditorScreenState extends State<CutoutEditorScreen> {
               ),
             ),
           ),
-          if (_editing) const LinearProgressIndicator(),
+          if (_editing) const Center(child: CircularProgressIndicator()),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
             child: Row(
