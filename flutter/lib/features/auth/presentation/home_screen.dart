@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -66,6 +67,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       }
     },
     child: Scaffold(
+      extendBody: true,
       body: IndexedStack(
         index: _index,
         children: [
@@ -76,9 +78,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           ProfileScreen(email: widget.email, token: widget.token),
         ],
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: _selectTab,
+      bottomNavigationBar: ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+          child: Container(
+            color: Theme.of(context).colorScheme.surface,
+            child: NavigationBar(
+              backgroundColor: Colors.transparent,
+              indicatorColor: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+              elevation: 0,
+              selectedIndex: _index,
+              onDestinationSelected: _selectTab,
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.checkroom_outlined),
@@ -107,6 +118,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           ),
         ],
       ),
+    ),
+  ),
+),
     ),
   );
 }
