@@ -5,10 +5,10 @@ from datetime import datetime, timezone
 from io import BytesIO
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, Response, UploadFile, status
-from PIL import Image, UnidentifiedImageError
-from sqlalchemy import String, cast, or_, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, Response, UploadFile, status  # type: ignore
+from PIL import Image, UnidentifiedImageError  # type: ignore
+from sqlalchemy import String, cast, or_, select  # type: ignore
+from sqlalchemy.ext.asyncio import AsyncSession  # type: ignore
 
 from app.api.deps import get_current_user, get_db_session
 from app.db.models.cloudinary_deletion_job import CloudinaryDeletionJob

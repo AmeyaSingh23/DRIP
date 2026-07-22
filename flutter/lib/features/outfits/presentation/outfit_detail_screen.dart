@@ -1,15 +1,17 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../../core/widgets/cached_wardrobe_image.dart';
 import '../../../core/widgets/hanger_loading_indicator.dart';
 import '../../creative/presentation/creative_space_screen.dart';
+import '../../wardrobe/presentation/wardrobe_change_notifier.dart';
 import '../data/outfit_repository.dart';
 import '../domain/saved_outfit.dart';
 
-class OutfitDetailScreen extends StatefulWidget {
+class OutfitDetailScreen extends ConsumerStatefulWidget {
   const OutfitDetailScreen({
     required this.outfitId,
     required this.token,
@@ -20,10 +22,10 @@ class OutfitDetailScreen extends StatefulWidget {
   final String token;
 
   @override
-  State<OutfitDetailScreen> createState() => _OutfitDetailScreenState();
+  ConsumerState<OutfitDetailScreen> createState() => _OutfitDetailScreenState();
 }
 
-class _OutfitDetailScreenState extends State<OutfitDetailScreen> {
+class _OutfitDetailScreenState extends ConsumerState<OutfitDetailScreen> {
   final _repository = OutfitRepository(ApiClient());
   SavedOutfit? _outfit;
   String? _error;
@@ -82,6 +84,7 @@ class _OutfitDetailScreenState extends State<OutfitDetailScreen> {
     setState(() => _deleting = true);
     try {
       await _repository.archive(token: widget.token, outfitId: widget.outfitId);
+      ref.read(outfitRevisionProvider.notifier).notifyChanged();
       if (mounted) context.pop(true);
     } on DioException catch (_) {
       if (mounted) {
@@ -128,6 +131,29 @@ class _OutfitDetailScreenState extends State<OutfitDetailScreen> {
     }
   }
 
+  Future<void> _restoreOutfit() async {
+    if (_deleting || _outfit == null) return;
+    setState(() => _deleting = true);
+    try {
+      await _repository.restore(token: widget.token, outfitId: widget.outfitId);
+      ref.read(outfitRevisionProvider.notifier).notifyChanged();
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Outfit restored successfully.')),
+        );
+      }
+    } on DioException catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not restore outfit. Please try again.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _deleting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final outfit = _outfit;
@@ -145,40 +171,61 @@ class _OutfitDetailScreenState extends State<OutfitDetailScreen> {
           title: Text(outfit?.name ?? 'Outfit'),
           automaticallyImplyLeading: !_deleting,
           actions: [
-            if (outfit != null && !outfit.isArchived)
+            if (outfit != null)
               IconButton(
-                onPressed: _deleting ? null : _editDetails,
-                icon: const Icon(Icons.edit_note_outlined),
-                tooltip: 'Edit outfit details',
+                onPressed: _deleting
+                    ? null
+                    : (outfit.isArchived
+                        ? () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Restore this outfit before editing details.')),
+                            );
+                          }
+                        : _editDetails),
+                icon: Icon(
+                  Icons.edit_note_outlined,
+                  color: outfit.isArchived ? Theme.of(context).colorScheme.onSurface.withOpacity(0.3) : null,
+                ),
+                tooltip: outfit.isArchived ? 'Restore outfit to edit details' : 'Edit outfit details',
               ),
-            if (outfit != null && !outfit.isArchived)
+            if (outfit != null)
               IconButton(
-                onPressed:
-                    _deleting
-                        ? null
+                onPressed: _deleting
+                    ? null
+                    : (outfit.isArchived
+                        ? () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Restore this outfit before styling on canvas.')),
+                            );
+                          }
                         : () async {
-                          await context.push(
-                            '/creative',
-                            extra: CreativeRouteArgs(
-                              token: widget.token,
-                              initialItems: outfit.items,
-                              initialName: outfit.name,
-                              initialOccasion: outfit.occasion,
-                              initialLayout: outfit.itemLayout,
-                              editingOutfitId: outfit.id,
-                              startCollapsed: true,
-                            ),
-                          );
-                          if (mounted) await _load();
-                        },
-                icon: const Icon(Icons.palette_outlined),
-                tooltip: 'Style on canvas',
+                            await context.push(
+                              '/creative',
+                              extra: CreativeRouteArgs(
+                                token: widget.token,
+                                initialItems: outfit.items,
+                                initialName: outfit.name,
+                                initialOccasion: outfit.occasion,
+                                initialLayout: outfit.itemLayout,
+                                editingOutfitId: outfit.id,
+                                startCollapsed: true,
+                              ),
+                            );
+                            if (mounted) await _load();
+                          }),
+                icon: Icon(
+                  Icons.palette_outlined,
+                  color: outfit.isArchived ? Theme.of(context).colorScheme.onSurface.withOpacity(0.3) : null,
+                ),
+                tooltip: outfit.isArchived ? 'Restore outfit to style on canvas' : 'Style on canvas',
               ),
-            if (outfit != null && !outfit.isArchived)
+            if (outfit != null)
               IconButton(
-                onPressed: _deleting ? null : _delete,
-                icon: const Icon(Icons.archive_outlined),
-                tooltip: 'Archive outfit',
+                onPressed: _deleting
+                    ? null
+                    : (outfit.isArchived ? _restoreOutfit : _delete),
+                icon: Icon(outfit.isArchived ? Icons.restore : Icons.archive_outlined),
+                tooltip: outfit.isArchived ? 'Restore outfit' : 'Archive outfit',
               ),
           ],
         ),
@@ -191,9 +238,30 @@ class _OutfitDetailScreenState extends State<OutfitDetailScreen> {
                   padding: const EdgeInsets.all(16),
                   children: [
                     if (outfit.isArchived)
-                      const Padding(
-                        padding: EdgeInsets.only(bottom: 8),
-                        child: Chip(label: Text('Archived')),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
+                                color: Theme.of(context).brightness == Brightness.dark 
+                                    ? Colors.white.withOpacity(0.1) 
+                                    : Colors.black.withOpacity(0.05),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.archive_outlined, size: 16, color: Theme.of(context).colorScheme.onSurface),
+                                  const SizedBox(width: 8),
+                                  Text('Archived', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     if (outfit.occasion != null)
                       Chip(label: Text(outfit.occasion!)),

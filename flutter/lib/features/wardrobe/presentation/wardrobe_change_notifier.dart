@@ -15,3 +15,15 @@ final class WardrobeRevisionNotifier extends Notifier<int> {
 
   void notifyChanged() => state++;
 }
+
+final outfitRevisionProvider =
+    NotifierProvider<OutfitRevisionNotifier, int>(
+      OutfitRevisionNotifier.new,
+    );
+
+final class OutfitRevisionNotifier extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void notifyChanged() => state++;
+}

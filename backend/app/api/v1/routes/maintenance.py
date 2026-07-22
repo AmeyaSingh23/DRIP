@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, Header, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Depends, Header, HTTPException, status # type: ignore
+from sqlalchemy.ext.asyncio import AsyncSession # type: ignore
 
 from app.api.deps import get_db_session
 from app.core.config import get_settings

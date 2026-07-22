@@ -8,3 +8,9 @@
 
 ## Shell / Terminal Rules
 - **PowerShell Chaining:** Do not use `&&` to chain commands because PowerShell on Windows does not support it by default. Use `;` to chain commands instead (e.g., `git add . ; git commit -m "Msg"`).
+
+## UI/UX Glassmorphism Rules
+- **Scroll Blur Fix:** When `BackdropFilter` applies glassmorphic effects (blur) on items inside a scrolling container, it causes visual stuttering, glitching, or becoming transparent if the scrolling elements are translated across separate render boxes. To fix this:
+  - DO NOT use `SingleChildScrollView` with a standard column and a floating `AppBar` in the `Scaffold`. 
+  - INSTEAD, wrap the page in a `CustomScrollView` with `physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics())`.
+  - Place a `SliverAppBar` with its own `BackdropFilter` inside the `CustomScrollView`'s slivers, and make the `Scaffold` background completely transparent. This groups the scroll translation in the same compositing layer and solves the blur rendering issue seamlessly while retaining the `BackdropFilter` on list tiles.

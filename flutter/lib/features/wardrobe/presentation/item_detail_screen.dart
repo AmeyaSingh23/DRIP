@@ -200,6 +200,30 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
     }
   }
 
+  Future<void> _restoreItem() async {
+    final item = _item;
+    if (_mutating || item == null) return;
+    setState(() => _mutating = true);
+    try {
+      await _repository.restore(itemId: item.id, token: widget.token);
+      ref.read(wardrobeRevisionProvider.notifier).notifyChanged();
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Item restored successfully.')),
+        );
+      }
+    } on DioException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_messageFor(error))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _mutating = false);
+    }
+  }
+
   String _formattedDate(DateTime date) =>
       '${date.day.toString().padLeft(2, '0')} ${_monthName(date.month)} ${date.year}';
 
@@ -245,21 +269,70 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
                 child: SafeArea(
                   child: Wrap(
                     children: [
-                      ListTile(
-                        leading: Icon(Icons.remove_circle_outline, color: Theme.of(context).colorScheme.onSurface),
-                        title: Text('Archive item', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
-                        subtitle: Text('Preserves saved outfit and calendar history', style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7))),
-                        onTap: () {
-                          Navigator.pop(sheetContext);
-                          _archive();
-                        },
-                      ),
+                      if (item.isArchived)
+                        ListTile(
+                          leading: Icon(Icons.restore, color: Theme.of(context).colorScheme.onSurface),
+                          title: Text('Restore item', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+                          subtitle: Text('Restores item back to active wardrobe', style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7))),
+                          onTap: () {
+                            Navigator.pop(sheetContext);
+                            _restoreItem();
+                          },
+                        )
+                      else
+                        ListTile(
+                          leading: Icon(Icons.remove_circle_outline, color: Theme.of(context).colorScheme.onSurface),
+                          title: Text('Archive item', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+                          subtitle: Text('Preserves saved outfit and calendar history', style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7))),
+                          onTap: () {
+                            Navigator.pop(sheetContext);
+                            _archive();
+                          },
+                        ),
                     ],
                   ),
                 ),
               ),
             ),
           ),
+    );
+  }
+
+  Widget _buildEmptyUsageTile(IconData icon, String message) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).brightness == Brightness.dark
+                ? Colors.black.withOpacity(0.2)
+                : Colors.white.withOpacity(0.3),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.white.withOpacity(0.1)
+                  : Colors.white.withOpacity(0.4),
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 20, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  message,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -320,9 +393,24 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
                       automaticallyImplyLeading: !_mutating,
                       actions: [
                         IconButton(
-                          tooltip: 'Edit item',
-                          onPressed: _mutating ? null : _edit,
-                          icon: Icon(Icons.edit_outlined, color: Theme.of(context).colorScheme.onSurface),
+                          tooltip: item.isArchived ? 'Restore item to edit' : 'Edit item',
+                          onPressed: _mutating
+                              ? null
+                              : (item.isArchived
+                                  ? () {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Restore this item before editing it.'),
+                                        ),
+                                      );
+                                    }
+                                  : _edit),
+                          icon: Icon(
+                            Icons.edit_outlined,
+                            color: item.isArchived
+                                ? Theme.of(context).colorScheme.onSurface.withOpacity(0.3)
+                                : Theme.of(context).colorScheme.onSurface,
+                          ),
                         ),
                         IconButton(
                           tooltip: 'More options',
@@ -362,6 +450,32 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
                         ),
                       ),
                       const SizedBox(height: 24),
+                      if (item.isArchived)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 16),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
+                                  color: Theme.of(context).brightness == Brightness.dark 
+                                      ? Colors.white.withOpacity(0.1) 
+                                      : Colors.black.withOpacity(0.05),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.archive_outlined, size: 16, color: Theme.of(context).colorScheme.onSurface),
+                                    const SizedBox(width: 8),
+                                    Text('Archived', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       Text(
                         item.itemName ?? 'Unnamed item',
                         style: Theme.of(context).textTheme.headlineSmall,
@@ -415,10 +529,7 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
                       ),
                       const SizedBox(height: 16),
                       if (usage.outfits.isEmpty)
-                        Text(
-                          'This item is not in a saved outfit yet.',
-                          style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
-                        )
+                        _buildEmptyUsageTile(Icons.checkroom_outlined, 'This item is not in a saved outfit yet.')
                       else
                         ...usage.outfits.map(
                           (outfit) => _GlassListTile(
@@ -442,10 +553,7 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
                       ),
                       const SizedBox(height: 16),
                       if (usage.calendarHistory.isEmpty)
-                        Text(
-                          'This item has not been scheduled yet.',
-                          style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
-                        )
+                        _buildEmptyUsageTile(Icons.calendar_today_outlined, 'This item has not been scheduled yet.')
                       else
                         ...usage.calendarHistory.map(
                           (entry) => _GlassListTile(

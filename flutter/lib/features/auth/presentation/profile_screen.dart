@@ -7,6 +7,7 @@ import '../../../core/theme/theme_provider.dart';
 import '../../outfits/data/outfit_repository.dart';
 import '../../profile/presentation/archive_screen.dart';
 import '../../wardrobe/data/wardrobe_repository.dart';
+import '../../wardrobe/presentation/wardrobe_change_notifier.dart';
 import 'auth_controller.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -136,7 +137,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
             child: Column(
               children: [
-                Icon(icon, size: 28, color: Theme.of(context).colorScheme.primary),
+                Icon(icon, size: 28, color: Theme.of(context).colorScheme.onSurface),
                 const SizedBox(height: 12),
                 if (count == null)
                   SizedBox(
@@ -144,7 +145,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     width: 24,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: Theme.of(context).colorScheme.primary,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   )
                 else
@@ -180,7 +181,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     required VoidCallback onTap,
     Color? overrideColor,
   }) {
-    final color = overrideColor ?? Theme.of(context).colorScheme.primary;
+    final color = overrideColor ?? Theme.of(context).colorScheme.onSurface;
     
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -260,6 +261,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeProvider);
 
+    ref.listen(wardrobeRevisionProvider, (_, _) => _fetchStats());
+    ref.listen(outfitRevisionProvider, (_, _) => _fetchStats());
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: CustomScrollView(
@@ -302,10 +306,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         width: 100,
                         height: 100,
                         decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.1),
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
                             width: 2,
                           ),
                         ),
@@ -315,7 +319,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             style: TextStyle(
                               fontSize: 42,
                               fontWeight: FontWeight.bold,
-                              color: Theme.of(context).colorScheme.primary,
+                              color: Theme.of(context).colorScheme.onSurface,
                             ),
                           ),
                         ),

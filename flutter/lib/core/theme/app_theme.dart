@@ -13,6 +13,12 @@ class AppTheme {
         onPrimary: Colors.white,
         onSurface: Color(0xFFC2185B), // Deep Rose for text
       ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: const Color(0xFF2D151E), // Dark rich plum background
+        contentTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
     );
   }
 
@@ -27,6 +33,12 @@ class AppTheme {
         surface: Color(0x22FFFFFF), // Frosted glass dark
         onPrimary: Colors.white,
         onSurface: Color(0xFFFFB6C1), // Baby pink for text in dark mode
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: const Color(0xFFFFF0F5), // Light lavender blush background
+        contentTextStyle: const TextStyle(color: Color(0xFF2D151E), fontWeight: FontWeight.w600),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
     );
   }

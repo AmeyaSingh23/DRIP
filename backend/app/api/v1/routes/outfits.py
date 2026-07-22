@@ -3,9 +3,9 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
-from sqlalchemy import delete, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status # type: ignore
+from sqlalchemy import delete, select # type: ignore
+from sqlalchemy.ext.asyncio import AsyncSession # type: ignore
 
 from app.api.deps import get_current_user, get_db_session
 from app.api.v1.routes.items import _response
@@ -179,8 +179,6 @@ async def get_outfit(
     session: AsyncSession = Depends(get_db_session),
 ) -> OutfitResponse:
     outfit, items = await _outfit_with_items(outfit_id, current_user.id, session)
-    if outfit.archived_at is not None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Restore this outfit before editing it")
     return _outfit_response(outfit, items)
 
 
@@ -192,6 +190,8 @@ async def update_outfit(
     session: AsyncSession = Depends(get_db_session),
 ) -> OutfitResponse:
     outfit, items = await _outfit_with_items(outfit_id, current_user.id, session)
+    if outfit.archived_at is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Restore this outfit before editing it")
     values = payload.model_dump(exclude_unset=True)
     if "name" in values:
         name = values["name"]

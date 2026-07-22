@@ -463,6 +463,7 @@ class _CreativeSpaceScreenState extends ConsumerState<CreativeSpaceScreen> {
         outfitId: widget.editingOutfitId,
         idempotencyKey: _saveIdempotencyKey ??= const Uuid().v4(),
       );
+      ref.read(outfitRevisionProvider.notifier).notifyChanged();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

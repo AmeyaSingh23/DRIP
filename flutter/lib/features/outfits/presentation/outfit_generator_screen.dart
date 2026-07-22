@@ -11,6 +11,7 @@ import 'package:uuid/uuid.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/widgets/cached_wardrobe_image.dart';
 import '../../creative/presentation/creative_space_screen.dart';
+import '../../wardrobe/presentation/wardrobe_change_notifier.dart';
 import '../data/outfit_repository.dart';
 import '../domain/outfit_preview.dart';
 import '../domain/outfit_weather.dart';
@@ -18,13 +19,13 @@ import 'city_picker_sheet.dart';
 
 enum _WeatherState { idle, loading, available, unavailable }
 
-class OutfitGeneratorScreen extends StatefulWidget {
+class OutfitGeneratorScreen extends ConsumerStatefulWidget {
   const OutfitGeneratorScreen({required this.token, super.key});
 
   final String token;
 
   @override
-  State<OutfitGeneratorScreen> createState() => _OutfitGeneratorScreenState();
+  ConsumerState<OutfitGeneratorScreen> createState() => _OutfitGeneratorScreenState();
 }
 
 class _LocationMessage implements Exception {
@@ -33,7 +34,7 @@ class _LocationMessage implements Exception {
   final String message;
 }
 
-class _OutfitGeneratorScreenState extends State<OutfitGeneratorScreen> {
+class _OutfitGeneratorScreenState extends ConsumerState<OutfitGeneratorScreen> {
   final _repository = OutfitRepository(ApiClient());
   final _occasion = TextEditingController();
   final _notes = TextEditingController();
@@ -324,6 +325,7 @@ class _OutfitGeneratorScreenState extends State<OutfitGeneratorScreen> {
         itemLayout: const [],
         idempotencyKey: _saveIdempotencyKey ??= const Uuid().v4(),
       );
+      ref.read(outfitRevisionProvider.notifier).notifyChanged();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

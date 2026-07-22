@@ -37,7 +37,7 @@ class WardrobeFilterTabs extends StatelessWidget {
               : (isDark ? Colors.white.withOpacity(0.15) : Colors.white.withOpacity(0.8));
           
           final textColor = isSelected 
-              ? Colors.white 
+              ? (isDark ? Colors.white : const Color(0xFF5C0024)) 
               : Theme.of(context).colorScheme.onSurface;
 
           return GestureDetector(
