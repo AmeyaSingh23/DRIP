@@ -71,7 +71,7 @@ class _ShimmerSkeletonState extends State<ShimmerSkeleton> with SingleTickerProv
             ? Center(
                 child: Icon(
                   Icons.checkroom_rounded,
-                  size: widget.height * 0.4,
+                  size: widget.height.isFinite ? widget.height * 0.4 : 48.0,
                   color: Colors.white.withOpacity(0.5),
                 ),
               )

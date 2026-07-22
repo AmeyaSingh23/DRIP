@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -528,120 +529,171 @@ class _CreativeSpaceScreenState extends ConsumerState<CreativeSpaceScreen> {
   Widget build(BuildContext context) {
     ref.listen(wardrobeRevisionProvider, (_, _) => _loadWardrobe());
     return Scaffold(
-    appBar: AppBar(
-      title: const Text('Studio'),
-      actions: [
-        IconButton(
-          tooltip: 'Focus mannequin',
-          onPressed: _focusMannequin,
-          icon: const Icon(Icons.center_focus_strong),
-        ),
-      ],
-    ),
-    body: SafeArea(
-      top: false,
-      child: Column(
-        children: [
-          Expanded(
-            child: Row(
-              children: [
-                _sidebar(),
-                const VerticalDivider(width: 1),
-                Expanded(child: _canvas()),
-              ],
+      backgroundColor: Colors.transparent,
+      appBar: AppBar(
+        title: const Text('Studio'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        flexibleSpace: ClipRRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: Container(
+              color: Theme.of(context).brightness == Brightness.dark 
+                  ? Colors.black.withOpacity(0.2) 
+                  : Colors.white.withOpacity(0.3),
             ),
           ),
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: _saving ? null : _save,
-                      icon: const Icon(Icons.bookmark_add_outlined),
-                      label: Text(
-                        _saving
-                            ? 'Saving...'
-                            : widget.editingOutfitId == null
-                            ? 'Save as outfit'
-                            : 'Save changes',
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  OutlinedButton.icon(
-                    onPressed: _saving || _placed.isEmpty ? null : _clearAll,
-                    icon: const Icon(Icons.layers_clear_outlined),
-                    label: const Text('Clear all'),
-                  ),
-                ],
-              ),
-            ),
+        ),
+        actions: [
+          IconButton(
+            tooltip: 'Focus mannequin',
+            onPressed: _focusMannequin,
+            icon: Icon(Icons.center_focus_strong, color: Theme.of(context).colorScheme.onSurface),
           ),
         ],
       ),
-    ),
-    );
-  }
-
-  Widget _sidebar() => AnimatedContainer(
-    duration: const Duration(milliseconds: 250),
-    curve: Curves.easeInOut,
-    width: _sidebarCollapsed ? 36 : 116,
-    color: Theme.of(context).colorScheme.surface,
-    child:
-        _sidebarCollapsed
-            ? Align(
-              alignment: Alignment.topCenter,
-              child: IconButton(
-                tooltip: 'Show wardrobe',
-                onPressed: () => setState(() => _sidebarCollapsed = false),
-                icon: const Icon(Icons.chevron_right),
+      body: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            Expanded(
+              child: Row(
+                children: [
+                  _sidebar(),
+                  Expanded(child: _canvas()),
+                ],
               ),
-            )
-            : Column(
-              children: [
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: IconButton(
-                    tooltip: 'Hide wardrobe',
-                    onPressed: () => setState(() => _sidebarCollapsed = true),
-                    icon: const Icon(Icons.chevron_left),
-                  ),
-                ),
-                SizedBox(
-                  height: 42,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    itemCount: _categories.length,
-                    separatorBuilder: (_, _) => const SizedBox(width: 6),
-                    itemBuilder: (context, index) {
-                      final category = _categories[index];
-                      return ChoiceChip(
-                        label: Text(category),
-                        selected: category == _selectedCategory,
-                        onSelected:
-                            (_) => setState(() => _selectedCategory = category),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Expanded(
-                  child: CustomScrollView(
-                    physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-                    slivers: [
-                      WardrobeHangerRefreshControl(onRefresh: _loadWardrobe),
-                      _itemList(),
+            ),
+            ClipRRect(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                child: Container(
+                  color: Theme.of(context).brightness == Brightness.dark 
+                      ? Colors.black.withOpacity(0.2) 
+                      : Colors.white.withOpacity(0.3),
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton.icon(
+                          style: FilledButton.styleFrom(
+                            foregroundColor: Theme.of(context).brightness == Brightness.dark 
+                                ? Colors.white 
+                                : const Color(0xFF5C0024),
+                          ),
+                          onPressed: _saving ? null : _save,
+                          icon: const Icon(Icons.bookmark_add_outlined),
+                          label: Text(
+                            _saving
+                                ? 'Saving...'
+                                : widget.editingOutfitId == null
+                                ? 'Save as outfit'
+                                : 'Save changes',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Theme.of(context).colorScheme.onSurface,
+                          side: BorderSide(
+                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                          ),
+                        ),
+                        onPressed: _saving || _placed.isEmpty ? null : _clearAll,
+                        icon: const Icon(Icons.layers_clear_outlined),
+                        label: const Text('Clear all'),
+                      ),
                     ],
                   ),
                 ),
-              ],
+              ),
             ),
-  );
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _sidebar() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeInOut,
+          width: _sidebarCollapsed ? 36 : 116,
+          decoration: BoxDecoration(
+            color: isDark ? Colors.black.withOpacity(0.25) : Colors.white.withOpacity(0.40),
+            border: Border(
+              right: BorderSide(
+                color: isDark ? Colors.white.withOpacity(0.1) : Colors.white.withOpacity(0.4),
+              ),
+            ),
+          ),
+          child: _sidebarCollapsed
+              ? Align(
+                  alignment: Alignment.topCenter,
+                  child: IconButton(
+                    tooltip: 'Show wardrobe',
+                    onPressed: () => setState(() => _sidebarCollapsed = false),
+                    icon: Icon(Icons.chevron_right, color: Theme.of(context).colorScheme.onSurface),
+                  ),
+                )
+              : Column(
+                  children: [
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: IconButton(
+                        tooltip: 'Hide wardrobe',
+                        onPressed: () => setState(() => _sidebarCollapsed = true),
+                        icon: Icon(Icons.chevron_left, color: Theme.of(context).colorScheme.onSurface),
+                      ),
+                    ),
+                    SizedBox(
+                      height: 42,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        itemCount: _categories.length,
+                        separatorBuilder: (_, _) => const SizedBox(width: 6),
+                        itemBuilder: (context, index) {
+                          final category = _categories[index];
+                          final isSelected = category == _selectedCategory;
+                          return ChoiceChip(
+                            label: Text(
+                              category,
+                              style: TextStyle(
+                                color: isSelected
+                                    ? (isDark ? Colors.white : const Color(0xFF5C0024))
+                                    : Theme.of(context).colorScheme.onSurface,
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                              ),
+                            ),
+                            selected: isSelected,
+                            selectedColor: Theme.of(context).colorScheme.primary,
+                            onSelected: (_) => setState(() => _selectedCategory = category),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: CustomScrollView(
+                        physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                        slivers: [
+                          WardrobeHangerRefreshControl(onRefresh: _loadWardrobe),
+                          _itemList(),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
 
   Widget _itemList() {
     if (_loading) return const SliverFillRemaining(child: Center(child: HangerLoadingIndicator()));
@@ -676,12 +728,15 @@ class _CreativeSpaceScreenState extends ConsumerState<CreativeSpaceScreen> {
   }
 
   Widget _draggableItem(ClothingItemDraft item) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isOnCanvas = _placed.values.any((placed) => placed.id == item.id);
-    final thumbnail = DecoratedBox(
+    final thumbnail = Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFFAFAF8),
+        color: isDark ? Colors.black.withOpacity(0.3) : Colors.white.withOpacity(0.5),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+        border: Border.all(
+          color: isDark ? Colors.white.withOpacity(0.1) : Colors.white.withOpacity(0.5),
+        ),
       ),
       child: Padding(
         padding: const EdgeInsets.all(6),
@@ -694,7 +749,9 @@ class _CreativeSpaceScreenState extends ConsumerState<CreativeSpaceScreen> {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.labelSmall,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
             ),
           ],
         ),
@@ -717,7 +774,7 @@ class _CreativeSpaceScreenState extends ConsumerState<CreativeSpaceScreen> {
     builder: (context, constraints) {
       _scheduleInitialView(Size(constraints.maxWidth, constraints.maxHeight));
       return Container(
-        color: const Color(0xFFFAFAF8),
+        color: Colors.transparent,
         padding: const EdgeInsets.all(16),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
@@ -762,7 +819,13 @@ class _CreativeSpaceScreenState extends ConsumerState<CreativeSpaceScreen> {
     key: _canvasKey,
     clipBehavior: Clip.none,
     children: [
-      Positioned.fill(child: CustomPaint(painter: _GridPainter())),
+      Positioned.fill(
+        child: CustomPaint(
+          painter: _GridPainter(
+            lineColor: Theme.of(context).colorScheme.onSurface.withOpacity(0.15),
+          ),
+        ),
+      ),
       Positioned.fromRect(
         rect: _dummyRect,
         child: IgnorePointer(child: _croppedDummy()),
@@ -797,9 +860,11 @@ class _CreativeSpaceScreenState extends ConsumerState<CreativeSpaceScreen> {
                 border:
                     _selectedItemId == item.id
                         ? Border.all(
-                          color: Theme.of(context).colorScheme.primary,
-                          width: 3,
-                        )
+                            color: Theme.of(context).brightness == Brightness.dark
+                                ? const Color(0xFFFFB6C1)
+                                : const Color(0xFFC2185B),
+                            width: 2.5,
+                          )
                         : null,
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -855,69 +920,87 @@ class _CreativeSpaceScreenState extends ConsumerState<CreativeSpaceScreen> {
         ),
   );
 
-  Widget _nudgeControls() => Material(
-    color: Theme.of(context).colorScheme.surface.withValues(alpha: .94),
-    elevation: 4,
-    borderRadius: BorderRadius.circular(12),
-    child: Padding(
-      padding: const EdgeInsets.all(4),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text('Adjust', style: TextStyle(fontSize: 11)),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                tooltip: 'Make smaller',
-                onPressed: () => _resizeSelected(.9),
-                icon: const Icon(Icons.remove_circle_outline),
-              ),
-              IconButton(
-                tooltip: 'Make larger',
-                onPressed: () => _resizeSelected(1.1),
-                icon: const Icon(Icons.add_circle_outline),
-              ),
-            ],
+  Widget _nudgeControls() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final iconColor = Theme.of(context).colorScheme.onSurface;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          decoration: BoxDecoration(
+            color: isDark ? Colors.black.withOpacity(0.4) : Colors.white.withOpacity(0.6),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isDark ? Colors.white.withOpacity(0.15) : Colors.white.withOpacity(0.5),
+            ),
           ),
-          IconButton(
-            tooltip: 'Move up',
-            onPressed: () => _nudge(const Offset(0, -8)),
-            icon: const Icon(Icons.keyboard_arrow_up),
+          child: Padding(
+            padding: const EdgeInsets.all(4),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Adjust', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: iconColor)),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'Make smaller',
+                      onPressed: () => _resizeSelected(.9),
+                      icon: Icon(Icons.remove_circle_outline, color: iconColor),
+                    ),
+                    IconButton(
+                      tooltip: 'Make larger',
+                      onPressed: () => _resizeSelected(1.1),
+                      icon: Icon(Icons.add_circle_outline, color: iconColor),
+                    ),
+                  ],
+                ),
+                IconButton(
+                  tooltip: 'Move up',
+                  onPressed: () => _nudge(const Offset(0, -8)),
+                  icon: Icon(Icons.keyboard_arrow_up, color: iconColor),
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'Move left',
+                      onPressed: () => _nudge(const Offset(-8, 0)),
+                      icon: Icon(Icons.keyboard_arrow_left, color: iconColor),
+                    ),
+                    IconButton(
+                      tooltip: 'Move right',
+                      onPressed: () => _nudge(const Offset(8, 0)),
+                      icon: Icon(Icons.keyboard_arrow_right, color: iconColor),
+                    ),
+                  ],
+                ),
+                IconButton(
+                  tooltip: 'Move down',
+                  onPressed: () => _nudge(const Offset(0, 8)),
+                  icon: Icon(Icons.keyboard_arrow_down, color: iconColor),
+                ),
+              ],
+            ),
           ),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                tooltip: 'Move left',
-                onPressed: () => _nudge(const Offset(-8, 0)),
-                icon: const Icon(Icons.keyboard_arrow_left),
-              ),
-              IconButton(
-                tooltip: 'Move right',
-                onPressed: () => _nudge(const Offset(8, 0)),
-                icon: const Icon(Icons.keyboard_arrow_right),
-              ),
-            ],
-          ),
-          IconButton(
-            tooltip: 'Move down',
-            onPressed: () => _nudge(const Offset(0, 8)),
-            icon: const Icon(Icons.keyboard_arrow_down),
-          ),
-        ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _GridPainter extends CustomPainter {
+  final Color lineColor;
+  _GridPainter({required this.lineColor});
+
   @override
   void paint(Canvas canvas, Size size) {
     const spacing = 40.0;
     final paint =
         Paint()
-          ..color = const Color(0xFFDDD9E5)
+          ..color = lineColor
           ..strokeWidth = 1;
     for (var x = 0.0; x <= size.width; x += spacing) {
       canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
@@ -928,7 +1011,7 @@ class _GridPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _GridPainter oldDelegate) => oldDelegate.lineColor != lineColor;
 }
 
 class _OutfitDetails {
@@ -957,6 +1040,8 @@ class _OutfitDetailsDialogState extends State<_OutfitDetailsDialog> {
     super.initState();
     _name = TextEditingController(text: widget.initialName);
     _occasion = TextEditingController(text: widget.initialOccasion ?? '');
+    _name.addListener(() => setState(() {}));
+    _occasion.addListener(() => setState(() {}));
   }
 
   @override
@@ -967,48 +1052,140 @@ class _OutfitDetailsDialogState extends State<_OutfitDetailsDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Save outfit'),
-    content: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        TextField(
-          controller: _name,
-          autofocus: true,
-          maxLength: 120,
-          decoration: const InputDecoration(labelText: 'Outfit name'),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _occasion,
-          maxLength: 50,
-          decoration: const InputDecoration(
-            labelText: 'Occasion (optional)',
-            hintText: 'College, dinner, date night...',
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceFill = isDark ? Colors.grey[850]! : Colors.grey[100]!;
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      insetPadding: const EdgeInsets.all(20),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(28),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+          child: Container(
+            color: isDark ? Colors.grey[900]!.withOpacity(0.60) : Colors.white.withOpacity(0.60),
+            padding: const EdgeInsets.all(24),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Save outfit',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Outfit name',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _name,
+                    autofocus: true,
+                    maxLength: 120,
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: surfaceFill,
+                      hintText: 'e.g. Summer Casual Outfit',
+                      counterText: '',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      '${_name.text.length}/120',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Occasion (optional)',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _occasion,
+                    maxLength: 50,
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: surfaceFill,
+                      hintText: 'College, dinner, date night...',
+                      counterText: '',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      '${_occasion.text.length}/50',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Theme.of(context).colorScheme.onSurface,
+                        ),
+                        child: const Text('Cancel'),
+                      ),
+                      const SizedBox(width: 12),
+                      FilledButton(
+                        style: FilledButton.styleFrom(
+                          foregroundColor: isDark ? Colors.white : const Color(0xFF5C0024),
+                        ),
+                        onPressed: () {
+                          final name = _name.text.trim();
+                          if (name.isEmpty) return;
+                          final occasion = _occasion.text.trim();
+                          Navigator.pop(
+                            context,
+                            _OutfitDetails(
+                              name: name,
+                              occasion: occasion.isEmpty ? null : occasion,
+                            ),
+                          );
+                        },
+                        child: const Text('Save'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
-      ],
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
       ),
-      FilledButton(
-        onPressed: () {
-          final name = _name.text.trim();
-          if (name.isEmpty) return;
-          final occasion = _occasion.text.trim();
-          Navigator.pop(
-            context,
-            _OutfitDetails(
-              name: name,
-              occasion: occasion.isEmpty ? null : occasion,
-            ),
-          );
-        },
-        child: const Text('Save'),
-      ),
-    ],
-  );
+    );
+  }
 }

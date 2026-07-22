@@ -104,11 +104,65 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
 
   Future<bool?> _confirm(String title, String content) => showDialog<bool>(
     context: context,
-    builder: (context) => AlertDialog(
-      title: Text(title), content: Text(content), actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-        FilledButton(style: FilledButton.styleFrom(backgroundColor: Colors.red), onPressed: () => Navigator.pop(context, true), child: const Text('Delete forever')),
-      ],
+    barrierColor: Colors.black26,
+    builder: (context) => Dialog(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      insetPadding: const EdgeInsets.all(24),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(28),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+          child: Container(
+            color: Theme.of(context).brightness == Brightness.dark
+                ? Colors.grey[900]!.withOpacity(0.60)
+                : Colors.white.withOpacity(0.60),
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  content,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Theme.of(context).colorScheme.onSurface,
+                      ),
+                      child: const Text('Cancel'),
+                    ),
+                    const SizedBox(width: 12),
+                    FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                      ),
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Delete forever'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     ),
   );
 
@@ -192,6 +246,77 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
                     },
                   ),
                 ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return SliverFillRemaining(
+      hasScrollBody: false,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 36),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? Colors.grey[900]!.withOpacity(0.40)
+                      : Colors.white.withOpacity(0.40),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: isDark
+                        ? Colors.white.withOpacity(0.12)
+                        : Colors.white.withOpacity(0.50),
+                  ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isDark
+                            ? Colors.white.withOpacity(0.08)
+                            : Theme.of(context).colorScheme.primary.withOpacity(0.15),
+                      ),
+                      child: Icon(
+                        icon,
+                        size: 36,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      subtitle,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                          ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -284,9 +409,10 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
     slivers: [
       WardrobeHangerRefreshControl(onRefresh: _load),
       if (_items.isEmpty)
-        SliverFillRemaining(
-          hasScrollBody: false, 
-          child: Column(children: const [SizedBox(height: 140), Center(child: Text('No archived items.'))])
+        _buildEmptyState(
+          icon: Icons.inventory_2_outlined,
+          title: 'No Archived Items',
+          subtitle: 'Items you archive from your wardrobe will appear here for safe keeping.',
         )
       else
         SliverPadding(
@@ -351,9 +477,10 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
     slivers: [
       WardrobeHangerRefreshControl(onRefresh: _load),
       if (_outfitsList.isEmpty)
-        SliverFillRemaining(
-          hasScrollBody: false, 
-          child: Column(children: const [SizedBox(height: 140), Center(child: Text('No archived outfits.'))])
+        _buildEmptyState(
+          icon: Icons.dry_cleaning_outlined,
+          title: 'No Archived Outfits',
+          subtitle: 'Outfits you archive will be kept here until restored or deleted.',
         )
       else
         SliverPadding(
