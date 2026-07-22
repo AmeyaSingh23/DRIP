@@ -370,61 +370,88 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
                       _InfoRow(
                         'Category',
                         item.customCategory ?? item.category,
+                        Icons.category_outlined,
                       ),
-                      if (item.color != null) _InfoRow('Color', item.color!),
+                      if (item.color != null) _InfoRow('Color', item.color!, Icons.color_lens_outlined),
                       if (item.pattern != null)
-                        _InfoRow('Pattern', item.pattern!),
-                      if (item.fabric != null) _InfoRow('Fabric', item.fabric!),
+                        _InfoRow('Pattern', item.pattern!, Icons.texture_outlined),
+                      if (item.fabric != null) _InfoRow('Fabric', item.fabric!, Icons.checkroom_outlined),
                       if (item.createdAt != null)
-                        _InfoRow('Added', _formattedDate(item.createdAt!)),
+                        _InfoRow('Added', _formattedDate(item.createdAt!), Icons.event_outlined),
                       const SizedBox(height: 14),
                       if (item.tags.isNotEmpty)
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
                           children: [
-                            ...item.tags.map((tag) => Chip(label: Text(tag))),
+                            ...item.tags.map((tag) => Chip(
+                              label: Text(tag),
+                              backgroundColor: Theme.of(context).brightness == Brightness.dark 
+                                  ? Colors.white.withOpacity(0.1) 
+                                  : Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                              side: BorderSide(
+                                color: Theme.of(context).brightness == Brightness.dark 
+                                    ? Colors.white.withOpacity(0.2) 
+                                    : Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                              ),
+                              labelStyle: TextStyle(
+                                color: Theme.of(context).brightness == Brightness.dark 
+                                    ? Colors.white
+                                    : Theme.of(context).colorScheme.primary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            )),
                           ],
                         ),
                       const SizedBox(height: 28),
                       Text(
                         'Used in ${usage.outfitCount} saved outfit${usage.outfitCount == 1 ? '' : 's'}',
-                        style: Theme.of(context).textTheme.titleLarge,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 16),
                       if (usage.outfits.isEmpty)
-                        const Text('This item is not in a saved outfit yet.')
+                        Text(
+                          'This item is not in a saved outfit yet.',
+                          style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
+                        )
                       else
                         ...usage.outfits.map(
-                          (outfit) => ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: const Icon(Icons.checkroom_outlined),
-                            title: Text(outfit.name ?? 'Untitled outfit'),
-                            trailing: const Icon(Icons.chevron_right),
-                            onTap:
-                                () => context.push(
-                                  '/outfits/${outfit.id}',
-                                  extra: widget.token,
-                                ),
+                          (outfit) => _GlassListTile(
+                            icon: Icons.checkroom_outlined,
+                            title: outfit.name ?? 'Untitled outfit',
+                            trailingIcon: Icons.chevron_right,
+                            onTap: () => context.push(
+                              '/outfits/${outfit.id}',
+                              extra: widget.token,
+                            ),
                           ),
                         ),
                       const SizedBox(height: 24),
                       Text(
                         'Calendar history',
-                        style: Theme.of(context).textTheme.titleLarge,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 16),
                       if (usage.calendarHistory.isEmpty)
-                        const Text('This item has not been scheduled yet.')
+                        Text(
+                          'This item has not been scheduled yet.',
+                          style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
+                        )
                       else
                         ...usage.calendarHistory.map(
-                          (entry) => ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: const Icon(Icons.calendar_today_outlined),
-                            title: Text(_formattedDate(entry.date)),
-                            subtitle: Text(
-                              '${_slotLabel(entry.slot)} · ${entry.outfitName ?? 'Untitled outfit'}',
-                            ),
+                          (entry) => _GlassListTile(
+                            icon: Icons.calendar_today_outlined,
+                            title: _formattedDate(entry.date),
+                            subtitle: '${_slotLabel(entry.slot)} · ${entry.outfitName ?? 'Untitled outfit'}',
                           ),
                         ),
                     ]),
@@ -437,23 +464,167 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
   }
 }
 
-class _InfoRow extends StatelessWidget {
-  const _InfoRow(this.label, this.value);
+class _GlassListTile extends StatelessWidget {
+  const _GlassListTile({
+    required this.icon,
+    required this.title,
+    this.subtitle,
+    this.trailingIcon,
+    this.onTap,
+  });
 
-  final String label;
-  final String value;
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final IconData? trailingIcon;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 5),
-    child: Row(
-      children: [
-        SizedBox(
-          width: 88,
-          child: Text(label, style: Theme.of(context).textTheme.bodySmall),
+    padding: const EdgeInsets.only(bottom: 12),
+    child: ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: Theme.of(context).brightness == Brightness.dark 
+                  ? Colors.white.withOpacity(0.1) 
+                  : Colors.white.withOpacity(0.5),
+            ),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Material(
+            color: Theme.of(context).brightness == Brightness.dark 
+                ? Colors.black.withOpacity(0.2) 
+                : Colors.white.withOpacity(0.4),
+            borderRadius: BorderRadius.circular(16),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(icon, size: 22, color: Theme.of(context).colorScheme.primary),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title, 
+                            style: TextStyle(
+                              fontSize: 16, 
+                              fontWeight: FontWeight.w600, 
+                              color: Theme.of(context).colorScheme.onSurface
+                            )
+                          ),
+                          if (subtitle != null) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              subtitle!, 
+                              style: TextStyle(
+                                fontSize: 13, 
+                                fontWeight: FontWeight.w600, 
+                                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                                letterSpacing: 0.5,
+                              )
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    if (trailingIcon != null) ...[
+                      const SizedBox(width: 16),
+                      Icon(trailingIcon, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
         ),
-        Expanded(child: Text(value)),
-      ],
+      ),
+    ),
+  );
+}
+
+class _InfoRow extends StatelessWidget {
+  const _InfoRow(this.label, this.value, this.icon);
+
+  final String label;
+  final String value;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).brightness == Brightness.dark 
+                ? Colors.black.withOpacity(0.2) 
+                : Colors.white.withOpacity(0.4),
+            border: Border.all(
+              color: Theme.of(context).brightness == Brightness.dark 
+                  ? Colors.white.withOpacity(0.1) 
+                  : Colors.white.withOpacity(0.5),
+            ),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, size: 22, color: Theme.of(context).colorScheme.primary),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label, 
+                      style: TextStyle(
+                        fontSize: 13, 
+                        fontWeight: FontWeight.w600, 
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                        letterSpacing: 0.5,
+                      )
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      value, 
+                      style: TextStyle(
+                        fontSize: 16, 
+                        fontWeight: FontWeight.w600, 
+                        color: Theme.of(context).colorScheme.onSurface
+                      )
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     ),
   );
 }

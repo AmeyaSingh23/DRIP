@@ -5,3 +5,6 @@
 
 ## Code Quality Rules
 - **Syntax and Brackets:** Always rigorously double-check closing parentheses, brackets, and braces when modifying Flutter widget trees using `multi_replace_file_content` to prevent syntax errors and hot reload failures.
+
+## Shell / Terminal Rules
+- **PowerShell Chaining:** Do not use `&&` to chain commands because PowerShell on Windows does not support it by default. Use `;` to chain commands instead (e.g., `git add . ; git commit -m "Msg"`).
