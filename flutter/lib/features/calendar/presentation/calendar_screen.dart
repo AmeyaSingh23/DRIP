@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -30,8 +31,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
     _load();
   }
 
-  String _dateText(DateTime date) =>
-      '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+  String _formattedFullDate(DateTime date) {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final dayName = days[date.weekday - 1];
+    final monthName = months[date.month - 1];
+    return '$dayName, ${date.day} $monthName ${date.year}';
+  }
 
   Future<void> _load() async {
     final requestEpoch = ++_loadEpoch;
@@ -71,6 +77,18 @@ class _CalendarScreenState extends State<CalendarScreen> {
     }
   }
 
+  Future<void> _selectDate() async {
+    final date = await showDialog<DateTime>(
+      context: context,
+      barrierColor: Colors.black26,
+      builder: (context) => _GlassDatePickerDialog(initialDate: _date),
+    );
+    if (date != null) {
+      setState(() => _date = DateUtils.dateOnly(date));
+      await _load();
+    }
+  }
+
   Future<void> _schedule(String slot) async {
     if (_actionInProgress) return;
     final entryDate = _date;
@@ -80,6 +98,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
       if (!mounted) return;
       final result = await showDialog<_ScheduleValues>(
         context: context,
+        barrierColor: Colors.black26,
         builder:
             (context) => _ScheduleDialog(
               title: 'Schedule ${_slotLabel(slot)}',
@@ -109,21 +128,65 @@ class _CalendarScreenState extends State<CalendarScreen> {
     if (_actionInProgress) return;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Clear schedule?'),
-            content: const Text('This removes the outfit from this time slot.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
+      barrierColor: Colors.black26,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        insetPadding: const EdgeInsets.all(24),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(28),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+            child: Container(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.grey[900]!.withOpacity(0.60)
+                  : Colors.white.withOpacity(0.60),
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Clear schedule?',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'This removes the outfit from this time slot.',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Theme.of(context).colorScheme.onSurface,
+                        ),
+                        child: const Text('Cancel'),
+                      ),
+                      const SizedBox(width: 12),
+                      FilledButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.red,
+                        ),
+                        child: const Text('Clear'),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Clear'),
-              ),
-            ],
+            ),
           ),
+        ),
+      ),
     );
     if (confirmed != true) return;
     setState(() => _actionInProgress = true);
@@ -154,110 +217,253 @@ class _CalendarScreenState extends State<CalendarScreen> {
     ).showSnackBar(SnackBar(content: Text(_messageFor(error, fallback))));
   }
 
-  String _slotLabel(String slot) =>
-      {
-        'morning_college': 'Morning / college',
-        'afternoon': 'Afternoon',
-        'evening': 'Evening',
-        'night': 'Night',
-      }[slot]!;
+  String _slotLabel(String slot) => switch (slot) {
+    'morning_college' => 'Morning',
+    'afternoon' => 'Afternoon',
+    'evening' => 'Evening',
+    'night' => 'Night',
+    _ => slot,
+  };
+
+  IconData _slotIcon(String slot) => switch (slot) {
+    'morning_college' => Icons.wb_sunny_outlined,
+    'afternoon' => Icons.wb_twilight,
+    'evening' => Icons.nights_stay_outlined,
+    'night' => Icons.bedtime_outlined,
+    _ => Icons.schedule,
+  };
+
+  Widget _buildDatePill() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.black.withOpacity(0.2)
+                  : Colors.white.withOpacity(0.4),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white.withOpacity(0.1)
+                    : Colors.white.withOpacity(0.5),
+              ),
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: _actionInProgress ? null : _selectDate,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.calendar_month_outlined,
+                        size: 20,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        _formattedFullDate(_date),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Icon(
+                        Icons.arrow_drop_down,
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGlassCard({required Widget child, VoidCallback? onTap}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white.withOpacity(0.1)
+                    : Colors.white.withOpacity(0.5),
+              ),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Material(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.black.withOpacity(0.2)
+                  : Colors.white.withOpacity(0.4),
+              borderRadius: BorderRadius.circular(16),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: onTap,
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: child,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Calendar')),
-    body: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          OutlinedButton.icon(
-            onPressed:
-                _actionInProgress
-                    ? null
-                    : () async {
-                      final date = await showDatePicker(
-                        context: context,
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime(2035),
-                        initialDate: _date,
-                      );
-                      if (date != null) {
-                        setState(() => _date = DateUtils.dateOnly(date));
-                        await _load();
-                      }
-                    },
-            icon: const Icon(Icons.calendar_month_outlined),
-            label: Text(_dateText(_date)),
+    backgroundColor: Colors.transparent,
+    body: CustomScrollView(
+      physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+      slivers: [
+        SliverAppBar(
+          title: const Text('Calendar'),
+          pinned: true,
+          floating: true,
+          backgroundColor: Colors.transparent,
+          flexibleSpace: ClipRRect(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+              child: Container(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.black.withOpacity(0.2)
+                    : Colors.white.withOpacity(0.3),
+              ),
+            ),
           ),
-          const SizedBox(height: 16),
-          Expanded(
-            child:
-                _loading
-                    ? const Center(child: HangerLoadingIndicator())
-                    : _error != null
-                    ? ListView(
+        ),
+        SliverToBoxAdapter(
+          child: Column(
+            children: [
+              _buildDatePill(),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+        if (_loading)
+          const SliverFillRemaining(child: Center(child: HangerLoadingIndicator()))
+        else if (_error != null)
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: Column(
+              children: [
+                const SizedBox(height: 100),
+                Center(child: Text(_error!)),
+                const SizedBox(height: 12),
+                Center(
+                  child: FilledButton.icon(
+                    onPressed: _load,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Try again'),
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final slots = ['morning_college', 'afternoon', 'evening', 'night'];
+                  final slot = slots[index];
+                  final entry = _entries
+                      .cast<Map<String, dynamic>?>()
+                      .firstWhere(
+                        (entry) => entry?['slot'] == slot,
+                        orElse: () => null,
+                      );
+                  return _buildGlassCard(
+                    onTap: entry?['outfit_id'] == null
+                        ? null
+                        : () => context.push(
+                              '/outfits/${entry!['outfit_id']}',
+                              extra: widget.token,
+                            ),
+                    child: Row(
                       children: [
-                        const SizedBox(height: 120),
-                        Center(child: Text(_error!)),
-                        const SizedBox(height: 12),
-                        Center(
-                          child: FilledButton.icon(
-                            onPressed: _load,
-                            icon: const Icon(Icons.refresh),
-                            label: const Text('Try again'),
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            _slotIcon(slot),
+                            color: Theme.of(context).colorScheme.onSurface,
                           ),
                         ),
-                      ],
-                    )
-                    : ListView(
-                      children:
-                          [
-                            'morning_college',
-                            'afternoon',
-                            'evening',
-                            'night',
-                          ].map((slot) {
-                            final entry = _entries
-                                .cast<Map<String, dynamic>?>()
-                                .firstWhere(
-                                  (entry) => entry?['slot'] == slot,
-                                  orElse: () => null,
-                                );
-                            return Card(
-                              child: ListTile(
-                                onTap:
-                                    entry?['outfit_id'] == null
-                                        ? null
-                                        : () => context.push(
-                                          '/outfits/${entry!['outfit_id']}',
-                                          extra: widget.token,
-                                        ),
-                                leading: const Icon(Icons.schedule),
-                                title: Text(_slotLabel(slot)),
-                                subtitle: Text(
-                                  entry?['outfit_name'] as String? ??
-                                      'No outfit scheduled',
-                                ),
-                                trailing: IconButton(
-                                  icon: Icon(
-                                    entry == null
-                                        ? Icons.add_circle_outline
-                                        : Icons.remove_circle_outline,
-                                  ),
-                                  onPressed:
-                                      _actionInProgress
-                                          ? null
-                                          : () =>
-                                              entry == null
-                                                  ? _schedule(slot)
-                                                  : _clear(entry),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _slotLabel(slot),
+                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
-                            );
-                          }).toList(),
+                              const SizedBox(height: 4),
+                              Text(
+                                entry?['outfit_name'] as String? ?? 'No outfit scheduled',
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  color: Theme.of(context).colorScheme.onSurface.withOpacity(
+                                    entry?['outfit_name'] == null ? 0.5 : 0.8,
+                                  ),
+                                  fontWeight: entry?['outfit_name'] == null ? FontWeight.normal : FontWeight.w500,
+                                ),
+                              ),
+                              if (entry?['notes'] != null && (entry!['notes'] as String).isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Notes: ${entry['notes']}',
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: Icon(
+                            entry == null ? Icons.add_circle_outline : Icons.remove_circle_outline,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                          onPressed: _actionInProgress
+                              ? null
+                              : () => entry == null ? _schedule(slot) : _clear(entry),
+                        ),
+                      ],
                     ),
+                  );
+                },
+                childCount: 4,
+              ),
+            ),
           ),
-        ],
-      ),
+      ],
     ),
   );
 }
@@ -279,6 +485,13 @@ class _ScheduleDialog extends StatefulWidget {
 class _ScheduleDialogState extends State<_ScheduleDialog> {
   final _notes = TextEditingController();
   SavedOutfit? _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _notes.addListener(() => setState(() {}));
+  }
+
   @override
   void dispose() {
     _notes.dispose();
@@ -286,61 +499,321 @@ class _ScheduleDialogState extends State<_ScheduleDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Text(widget.title),
-    content: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        DropdownButtonFormField<SavedOutfit>(
-          key: ValueKey(_selected?.id),
-          initialValue: _selected,
-          isExpanded: true,
-          menuMaxHeight: 360,
-          borderRadius: BorderRadius.circular(12),
-          decoration: const InputDecoration(labelText: 'Outfit'),
-          items:
-              widget.outfits
-                  .map(
-                    (outfit) => DropdownMenuItem(
-                      value: outfit,
-                      child: Text(
-                        outfit.name ?? 'Untitled outfit',
-                        overflow: TextOverflow.ellipsis,
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceFill = isDark ? Colors.grey[850]! : Colors.grey[100]!;
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      insetPadding: const EdgeInsets.all(20),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(28),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+          child: Container(
+            color: isDark ? Colors.grey[900]!.withOpacity(0.60) : Colors.white.withOpacity(0.60),
+            padding: const EdgeInsets.all(24),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.title,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Select Outfit',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<SavedOutfit>(
+                    key: ValueKey(_selected?.id),
+                    initialValue: _selected,
+                    isExpanded: true,
+                    menuMaxHeight: 360,
+                    dropdownColor: isDark ? const Color(0xFF2C2C2C) : Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: surfaceFill,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
                       ),
                     ),
-                  )
-                  .toList(),
-          onChanged: (value) => setState(() => _selected = value),
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: _notes,
-          maxLength: 1000,
-          decoration: const InputDecoration(
-            labelText: 'Notes (optional)',
-            counterText: '',
+                    items: widget.outfits
+                        .map(
+                          (outfit) => DropdownMenuItem(
+                            value: outfit,
+                            child: Text(
+                              outfit.name ?? 'Untitled outfit',
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) => setState(() => _selected = value),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Notes (optional)',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _notes,
+                    maxLength: 1000,
+                    maxLines: 3,
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: surfaceFill,
+                      hintText: 'Add notes for this occasion...',
+                      counterText: '',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      '${_notes.text.length}/1000',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Theme.of(context).colorScheme.onSurface,
+                        ),
+                        child: const Text('Cancel'),
+                      ),
+                      const SizedBox(width: 12),
+                      FilledButton(
+                        style: FilledButton.styleFrom(
+                          foregroundColor: isDark ? Colors.white : const Color(0xFF5C0024),
+                        ),
+                        onPressed: _selected == null
+                            ? null
+                            : () => Navigator.pop(
+                                  context,
+                                  _ScheduleValues(
+                                    outfit: _selected!,
+                                    notes: _notes.text.trim(),
+                                  ),
+                                ),
+                        child: const Text('Save schedule'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
-      ],
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
       ),
-      FilledButton(
-        onPressed:
-            _selected == null
-                ? null
-                : () => Navigator.pop(
-                  context,
-                  _ScheduleValues(
-                    outfit: _selected!,
-                    notes: _notes.text.trim(),
+    );
+  }
+}
+
+class _GlassDatePickerDialog extends StatefulWidget {
+  const _GlassDatePickerDialog({required this.initialDate});
+  final DateTime initialDate;
+
+  @override
+  State<_GlassDatePickerDialog> createState() => _GlassDatePickerDialogState();
+}
+
+class _GlassDatePickerDialogState extends State<_GlassDatePickerDialog> {
+  late DateTime _selectedDate;
+  bool _manualMode = false;
+  late final TextEditingController _dateController;
+  String? _manualError;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedDate = widget.initialDate;
+    _dateController = TextEditingController(
+      text: '${_selectedDate.day.toString().padLeft(2, '0')}/${_selectedDate.month.toString().padLeft(2, '0')}/${_selectedDate.year}',
+    );
+  }
+
+  @override
+  void dispose() {
+    _dateController.dispose();
+    super.dispose();
+  }
+
+  void _parseManualDate(String val) {
+    final parts = val.split('/');
+    if (parts.length == 3) {
+      final day = int.tryParse(parts[0]);
+      final month = int.tryParse(parts[1]);
+      final year = int.tryParse(parts[2]);
+      if (day != null && month != null && year != null && day >= 1 && day <= 31 && month >= 1 && month <= 12 && year >= 2020 && year <= 2035) {
+        try {
+          final dt = DateTime(year, month, day);
+          setState(() {
+            _selectedDate = DateUtils.dateOnly(dt);
+            _manualError = null;
+          });
+          return;
+        } catch (_) {}
+      }
+    }
+    setState(() => _manualError = 'Enter valid DD/MM/YYYY date');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceFill = isDark ? Colors.grey[850]! : Colors.grey[100]!;
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      insetPadding: const EdgeInsets.all(16),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(28),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+          child: Container(
+            color: isDark ? Colors.grey[900]!.withOpacity(0.60) : Colors.white.withOpacity(0.60),
+            padding: const EdgeInsets.all(20),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Select Date',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: _manualMode ? 'Switch to calendar' : 'Type date manually',
+                        icon: Icon(
+                          _manualMode ? Icons.calendar_month : Icons.edit_calendar,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                        onPressed: () => setState(() => _manualMode = !_manualMode),
+                      ),
+                    ],
                   ),
-                ),
-        child: const Text('Save'),
+                  const SizedBox(height: 12),
+                  if (_manualMode) ...[
+                    const SizedBox(height: 16),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Date (DD/MM/YYYY)',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _dateController,
+                      keyboardType: TextInputType.datetime,
+                      decoration: InputDecoration(
+                        hintText: 'e.g. 22/07/2026',
+                        errorText: _manualError,
+                        filled: true,
+                        fillColor: surfaceFill,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                      onChanged: _parseManualDate,
+                    ),
+                    const SizedBox(height: 24),
+                  ] else ...[
+                    SizedBox(
+                      height: 320,
+                      width: 320,
+                      child: Theme(
+                        data: Theme.of(context).copyWith(
+                          colorScheme: isDark
+                              ? Theme.of(context).colorScheme
+                              : Theme.of(context).colorScheme.copyWith(
+                                    primary: const Color(0xFFC2185B),
+                                    onPrimary: Colors.white,
+                                  ),
+                        ),
+                        child: CalendarDatePicker(
+                          initialDate: _selectedDate,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2035),
+                          onDateChanged: (date) {
+                            setState(() {
+                              _selectedDate = DateUtils.dateOnly(date);
+                              _dateController.text =
+                                  '${_selectedDate.day.toString().padLeft(2, '0')}/${_selectedDate.month.toString().padLeft(2, '0')}/${_selectedDate.year}';
+                            });
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Theme.of(context).colorScheme.onSurface,
+                        ),
+                        child: const Text('Cancel'),
+                      ),
+                      const SizedBox(width: 12),
+                      FilledButton(
+                        style: FilledButton.styleFrom(
+                          foregroundColor: isDark ? Colors.white : const Color(0xFF5C0024),
+                        ),
+                        onPressed: () => Navigator.pop(context, _selectedDate),
+                        child: const Text('Apply'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
-    ],
-  );
+    );
+  }
 }
