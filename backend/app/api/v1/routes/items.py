@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from io import BytesIO
 from uuid import UUID
 
+import httpx  # type: ignore
 from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, Response, UploadFile, status  # type: ignore
 from PIL import Image, UnidentifiedImageError  # type: ignore
 from sqlalchemy import String, cast, or_, select  # type: ignore
@@ -24,7 +25,7 @@ from app.schemas.clothing_item import (
     ClothingItemUsageResponse,
     OutfitUsage,
 )
-from app.services.bg_removal_service import BgRemovalService
+from app.services.bg_removal_service import BgRemovalService, trim_transparent_padding
 from app.services.cloudinary_service import CloudinaryService
 from app.services.cloudinary_reconciler import reconcile_cloudinary_deletions
 from app.services.gemini_tagger import GeminiTagger
@@ -32,6 +33,7 @@ from app.services.idempotency import acquire_idempotency_lease, complete_idempot
 
 router = APIRouter()
 _IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
+
 
 
 def _validate_image(data: bytes, content_type: str | None, limit: int, label: str) -> str:
@@ -234,6 +236,7 @@ async def upload_item_manually(
         if item is None:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This upload is no longer available. Start a new upload.")
         return _response(item)
+    cutout_bytes = trim_transparent_padding(cutout_bytes)
     cloudinary_url, public_id = await CloudinaryService().upload_cutout(
         cutout_bytes,
         current_user.id,
@@ -329,3 +332,40 @@ async def permanently_erase_item(
     await session.commit()
     await reconcile_cloudinary_deletions(session, limit=1)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/retrim-all", response_model=dict)
+async def retrim_all_items(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+) -> dict:
+    statement = select(ClothingItem).where(ClothingItem.user_id == current_user.id)
+    items = (await session.scalars(statement)).all()
+    trimmed_count = 0
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        for item in items:
+            try:
+                resp = await client.get(item.cloudinary_url)
+                if resp.status_code == 200 and resp.content:
+                    trimmed_bytes = trim_transparent_padding(resp.content)
+                    if len(trimmed_bytes) != len(resp.content):
+                        new_url, new_public_id = await CloudinaryService().upload_cutout(
+                            trimmed_bytes,
+                            current_user.id,
+                        )
+                        session.add(
+                            CloudinaryDeletionJob(
+                                user_id=current_user.id,
+                                public_id=item.cloudinary_public_id,
+                            )
+                        )
+                        item.cloudinary_url = new_url
+                        item.cloudinary_public_id = new_public_id
+                        trimmed_count += 1
+            except Exception:
+                continue
+
+    await session.commit()
+    return {"message": f"Successfully re-trimmed {trimmed_count} items", "trimmed_count": trimmed_count}
+

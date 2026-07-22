@@ -1,16 +1,37 @@
-from __future__ import annotations
-
+from io import BytesIO
+from PIL import Image  # type: ignore
 import asyncio
 
-import cloudinary
-import cloudinary.uploader
-import httpx
-from fastapi import HTTPException, status
+import cloudinary  # type: ignore
+import cloudinary.uploader  # type: ignore
+import httpx  # type: ignore
+from fastapi import HTTPException, status  # type: ignore
 
 from app.core.config import get_settings
 
 _RAPIDAPI_URL = "https://background-removal-ai.p.rapidapi.com/remove-background"
 _RAPIDAPI_HOST = "background-removal-ai.p.rapidapi.com"
+
+
+def trim_transparent_padding(image_bytes: bytes) -> bytes:
+    try:
+        with Image.open(BytesIO(image_bytes)) as img:
+            img = img.convert("RGBA")
+            bbox = img.getbbox()
+            if bbox:
+                left, upper, right, lower = bbox
+                padding = 8
+                left = max(0, left - padding)
+                upper = max(0, upper - padding)
+                right = min(img.width, right + padding)
+                lower = min(img.height, lower + padding)
+                cropped = img.crop((left, upper, right, lower))
+                out = BytesIO()
+                cropped.save(out, format="PNG")
+                return out.getvalue()
+    except Exception:
+        pass
+    return image_bytes
 
 
 class BgRemovalService:
@@ -84,7 +105,7 @@ class BgRemovalService:
                 png_response.raise_for_status()
                 if not png_response.content:
                     raise ValueError("RapidAPI returned an empty cutout")
-                return png_response.content
+                return trim_transparent_padding(png_response.content)
         except HTTPException:
             raise
         except (httpx.HTTPError, ValueError, KeyError, TypeError) as error:
@@ -95,3 +116,4 @@ class BgRemovalService:
         finally:
             if public_id is not None:
                 await self._delete_temp_upload(public_id)
+
