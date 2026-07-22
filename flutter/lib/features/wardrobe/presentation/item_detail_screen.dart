@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -118,20 +119,68 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
     if (item == null) return;
     final confirmed = await showDialog<bool>(
       context: context,
+      barrierColor: Colors.black26,
       builder:
-          (context) => AlertDialog(
-            title: const Text('Archive item?'),
-            content: const Text('This hides the item while preserving saved outfit and calendar history.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
+          (context) => Dialog(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            insetPadding: const EdgeInsets.all(24),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(28),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                child: Container(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey[900]!.withOpacity(0.50)
+                      : Colors.white.withOpacity(0.50),
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Archive item?',
+                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurface,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'This hides the item while preserving saved outfit and calendar history.',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            style: TextButton.styleFrom(
+                              foregroundColor: Theme.of(context).colorScheme.onSurface,
+                            ),
+                            child: const Text('Cancel'),
+                          ),
+                          const SizedBox(width: 8),
+                          FilledButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: Theme.of(context).colorScheme.onSurface,
+                              foregroundColor: Theme.of(context).brightness == Brightness.dark
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Theme.of(context).colorScheme.onPrimary,
+                            ),
+                            child: const Text('Archive'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Archive'),
-              ),
-            ],
+            ),
           ),
     );
     if (confirmed != true) return;
@@ -178,6 +227,42 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
     _ => slot,
   };
 
+  void _showActions(ClothingItemDraft item) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black26,
+      elevation: 0,
+      builder:
+          (sheetContext) => ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+              child: Container(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.grey[900]!.withOpacity(0.50)
+                    : Colors.white.withOpacity(0.50),
+                child: SafeArea(
+                  child: Wrap(
+                    children: [
+                      ListTile(
+                        leading: Icon(Icons.remove_circle_outline, color: Theme.of(context).colorScheme.onSurface),
+                        title: Text('Archive item', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+                        subtitle: Text('Preserves saved outfit and calendar history', style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7))),
+                        onTap: () {
+                          Navigator.pop(sheetContext);
+                          _archive();
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final item = _item;
@@ -194,30 +279,7 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
         }
       },
       child: Scaffold(
-        appBar: AppBar(
-          title: Text(item?.itemName ?? 'Wardrobe item'),
-          automaticallyImplyLeading: !_mutating,
-          actions: [
-            if (item != null)
-              IconButton(
-                tooltip: 'Edit item',
-                onPressed: _mutating ? null : _edit,
-                icon: const Icon(Icons.edit_outlined),
-              ),
-            if (item != null)
-              PopupMenuButton<bool>(
-                enabled: !_mutating,
-                onSelected: (_) => _archive(),
-                itemBuilder:
-                    (context) => const [
-                      PopupMenuItem(
-                        value: false,
-                        child: Text('Archive item'),
-                      ),
-                    ],
-              ),
-          ],
-        ),
+        backgroundColor: Colors.transparent,
         body:
             _loading
                 ? const Center(child: HangerLoadingIndicator())
@@ -234,20 +296,69 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
                 : CustomScrollView(
                   physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
                   slivers: [
+                    SliverAppBar(
+                      pinned: true,
+                      backgroundColor: Colors.transparent,
+                      elevation: 0,
+                      flexibleSpace: ClipRRect(
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                          child: Container(
+                            color: Theme.of(context).brightness == Brightness.dark 
+                                ? Colors.black.withOpacity(0.2) 
+                                : Colors.white.withOpacity(0.3),
+                          ),
+                        ),
+                      ),
+                      title: Text(
+                        item.itemName ?? 'Wardrobe item',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      automaticallyImplyLeading: !_mutating,
+                      actions: [
+                        IconButton(
+                          tooltip: 'Edit item',
+                          onPressed: _mutating ? null : _edit,
+                          icon: Icon(Icons.edit_outlined, color: Theme.of(context).colorScheme.onSurface),
+                        ),
+                        IconButton(
+                          tooltip: 'More options',
+                          onPressed: _mutating ? null : () => _showActions(item),
+                          icon: Icon(Icons.more_vert, color: Theme.of(context).colorScheme.onSurface),
+                        ),
+                      ],
+                    ),
                     WardrobeHangerRefreshControl(onRefresh: _load),
                     SliverPadding(
                       padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
                       sliver: SliverList(
                         delegate: SliverChildListDelegate([
-                      Container(
-                        height: 330,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFAFAF8),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: CachedWardrobeImage(url: item.cloudinaryUrl),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                          child: Container(
+                            height: 330,
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).brightness == Brightness.dark 
+                                  ? Colors.black.withOpacity(0.3) 
+                                  : Colors.white.withOpacity(0.4),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: Theme.of(context).brightness == Brightness.dark 
+                                    ? Colors.white.withOpacity(0.1) 
+                                    : Colors.white.withOpacity(0.5),
+                                width: 1,
+                              ),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: CachedWardrobeImage(url: item.cloudinaryUrl),
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 24),
