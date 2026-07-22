@@ -1,75 +1,392 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'auth_controller.dart';
-import '../../profile/presentation/archive_screen.dart';
-import '../../../core/theme/theme_provider.dart';
 
-class ProfileScreen extends ConsumerWidget {
+import '../../../core/network/api_client.dart';
+import '../../../core/theme/theme_provider.dart';
+import '../../outfits/data/outfit_repository.dart';
+import '../../profile/presentation/archive_screen.dart';
+import '../../wardrobe/data/wardrobe_repository.dart';
+import 'auth_controller.dart';
+
+class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({required this.email, required this.token, super.key});
   final String email;
   final String token;
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends ConsumerState<ProfileScreen> {
+  late final WardrobeRepository _wardrobeRepo;
+  late final OutfitRepository _outfitRepo;
+
+  int? _itemsCount;
+  int? _outfitsCount;
+  bool _loadingStats = true;
+
+  @override
+  void initState() {
+    super.initState();
+    final client = ApiClient();
+    _wardrobeRepo = WardrobeRepository(client);
+    _outfitRepo = OutfitRepository(client);
+    _fetchStats();
+  }
+
+  Future<void> _fetchStats() async {
+    try {
+      final items = await _wardrobeRepo.list(token: widget.token);
+      final outfits = await _outfitRepo.list(token: widget.token);
+      if (mounted) {
+        setState(() {
+          _itemsCount = items.length;
+          _outfitsCount = outfits.length;
+          _loadingStats = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _loadingStats = false);
+      }
+    }
+  }
+
+  void _showThemePicker() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      builder: (sheetContext) => ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+          child: Container(
+            color: Theme.of(context).brightness == Brightness.dark
+                ? Colors.grey[900]!.withOpacity(0.50)
+                : Colors.white.withOpacity(0.50),
+            child: SafeArea(
+              child: ListView(
+                shrinkWrap: true,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                children: [
+                  ListTile(
+                    leading: const Icon(Icons.light_mode_outlined),
+                    title: const Text('Light'),
+                    onTap: () {
+                      ref.read(themeProvider.notifier).setTheme(ThemeMode.light);
+                      Navigator.pop(sheetContext);
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.dark_mode_outlined),
+                    title: const Text('Dark'),
+                    onTap: () {
+                      ref.read(themeProvider.notifier).setTheme(ThemeMode.dark);
+                      Navigator.pop(sheetContext);
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.settings_suggest_outlined),
+                    title: const Text('System Default'),
+                    onTap: () {
+                      ref.read(themeProvider.notifier).setTheme(ThemeMode.system);
+                      Navigator.pop(sheetContext);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _themeModeName(ThemeMode mode) {
+    switch (mode) {
+      case ThemeMode.light:
+        return 'Light';
+      case ThemeMode.dark:
+        return 'Dark';
+      case ThemeMode.system:
+        return 'System Default';
+    }
+  }
+
+  Widget _buildStatCard(String label, int? count, IconData icon) {
+    return Expanded(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+            decoration: BoxDecoration(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.black.withOpacity(0.2)
+                  : Colors.white.withOpacity(0.4),
+              border: Border.all(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white.withOpacity(0.1)
+                    : Colors.white.withOpacity(0.5),
+              ),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              children: [
+                Icon(icon, size: 28, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(height: 12),
+                if (count == null)
+                  SizedBox(
+                    height: 24,
+                    width: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  )
+                else
+                  Text(
+                    '$count',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGlassTile({
+    required IconData icon,
+    required String title,
+    String? subtitle,
+    required VoidCallback onTap,
+    Color? overrideColor,
+  }) {
+    final color = overrideColor ?? Theme.of(context).colorScheme.primary;
+    
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white.withOpacity(0.1)
+                    : Colors.white.withOpacity(0.5),
+              ),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Material(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.black.withOpacity(0.2)
+                  : Colors.white.withOpacity(0.4),
+              borderRadius: BorderRadius.circular(16),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: onTap,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: color.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(icon, size: 22, color: color),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              title,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
+                            ),
+                            if (subtitle != null) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                subtitle,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      Icon(Icons.chevron_right, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final themeMode = ref.watch(themeProvider);
 
     return Scaffold(
-      backgroundColor: Colors.transparent, // Let global leopard background show
-      appBar: AppBar(
-        title: const Text('Profile'),
-        backgroundColor: Colors.transparent,
-      ),
-    body: Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(email, style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 32),
-          Text(
-            'App Theme',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurface,
+      backgroundColor: Colors.transparent,
+      body: CustomScrollView(
+        physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+        slivers: [
+          SliverAppBar(
+            pinned: true,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            flexibleSpace: ClipRRect(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                child: Container(
+                  color: Theme.of(context).brightness == Brightness.dark 
+                      ? Colors.black.withOpacity(0.2) 
+                      : Colors.white.withOpacity(0.3),
                 ),
-          ),
-          const SizedBox(height: 12),
-          SegmentedButton<ThemeMode>(
-            segments: const [
-              ButtonSegment(
-                value: ThemeMode.light,
-                label: Text('Light'),
-                icon: Icon(Icons.light_mode_outlined),
               ),
-              ButtonSegment(
-                value: ThemeMode.dark,
-                label: Text('Dark'),
-                icon: Icon(Icons.dark_mode_outlined),
+            ),
+            title: Text(
+              'Profile',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
+                fontWeight: FontWeight.bold,
               ),
-              ButtonSegment(
-                value: ThemeMode.system,
-                label: Text('System'),
-                icon: Icon(Icons.settings_suggest_outlined),
-              ),
-            ],
-            selected: {themeMode},
-            onSelectionChanged: (set) {
-              ref.read(themeProvider.notifier).setTheme(set.first);
-            },
+            ),
           ),
-          const SizedBox(height: 48),
-          OutlinedButton.icon(
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ArchiveScreen(token: token))),
-            icon: const Icon(Icons.inventory_2_outlined),
-            label: const Text('Archive'),
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: () => ref.read(authControllerProvider.notifier).logout(),
-            icon: const Icon(Icons.logout),
-            label: const Text('Sign out'),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                const SizedBox(height: 12),
+                // Header Avatar
+                Center(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(50),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                      child: Container(
+                        width: 100,
+                        height: 100,
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                            width: 2,
+                          ),
+                        ),
+                        child: Center(
+                          child: Text(
+                            widget.email.isNotEmpty ? widget.email[0].toUpperCase() : 'U',
+                            style: TextStyle(
+                              fontSize: 42,
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Center(
+                  child: Text(
+                    widget.email,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 32),
+                
+                // Stats Row
+                Row(
+                  children: [
+                    _buildStatCard('Total Items', _itemsCount, Icons.checkroom_outlined),
+                    const SizedBox(width: 12),
+                    _buildStatCard('Saved Outfits', _outfitsCount, Icons.dry_cleaning_outlined),
+                  ],
+                ),
+                
+                const SizedBox(height: 32),
+                Text(
+                  'Preferences',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _buildGlassTile(
+                  icon: Icons.palette_outlined,
+                  title: 'App Theme',
+                  subtitle: _themeModeName(themeMode),
+                  onTap: _showThemePicker,
+                ),
+                
+                const SizedBox(height: 24),
+                Text(
+                  'Account',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _buildGlassTile(
+                  icon: Icons.inventory_2_outlined,
+                  title: 'Archive',
+                  subtitle: 'View archived items and outfits',
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ArchiveScreen(token: widget.token))),
+                ),
+                _buildGlassTile(
+                  icon: Icons.logout,
+                  title: 'Sign out',
+                  onTap: () => ref.read(authControllerProvider.notifier).logout(),
+                  overrideColor: Colors.redAccent,
+                ),
+              ]),
+            ),
           ),
         ],
       ),
-    ),
-  );
+    );
   }
 }
