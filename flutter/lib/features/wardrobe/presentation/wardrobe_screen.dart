@@ -254,6 +254,77 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
     );
   }
 
+  Widget _buildEmptyState({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return SliverFillRemaining(
+      hasScrollBody: false,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 36),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? Colors.grey[900]!.withOpacity(0.40)
+                      : Colors.white.withOpacity(0.40),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: isDark
+                        ? Colors.white.withOpacity(0.12)
+                        : Colors.white.withOpacity(0.50),
+                  ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isDark
+                            ? Colors.white.withOpacity(0.08)
+                            : Theme.of(context).colorScheme.primary.withOpacity(0.15),
+                      ),
+                      child: Icon(
+                        icon,
+                        size: 36,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      subtitle,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.listen(wardrobeRevisionProvider, (_, _) => _load());
@@ -350,13 +421,10 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
               ),
             )
           else if (items.isEmpty)
-            const SliverFillRemaining(
-              hasScrollBody: false,
-              child: Center(
-                child: Text(
-                  'No wardrobe items here yet. Add your first item.',
-                ),
-              ),
+            _buildEmptyState(
+              icon: Icons.inventory_2_outlined,
+              title: 'No wardrobe items here yet.',
+              subtitle: 'Add your first item.',
             )
           else
             SliverPadding(

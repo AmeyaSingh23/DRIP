@@ -135,10 +135,13 @@ class _CityPickerSheetState extends State<CityPickerSheet> {
                         separatorBuilder: (_, _) => Divider(height: 1, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.1)),
                         itemBuilder: (_, index) {
                           final location = _results[index];
-                          return ListTile(
-                            leading: const Icon(Icons.location_city_outlined),
-                            title: Text(location.name),
-                            onTap: () => Navigator.of(context).pop(location),
+                          return Material(
+                            type: MaterialType.transparency,
+                            child: ListTile(
+                              leading: const Icon(Icons.location_city_outlined),
+                              title: Text(location.name),
+                              onTap: () => Navigator.of(context).pop(location),
+                            ),
                           );
                         },
                       ),

@@ -673,6 +673,7 @@ class _CreativeSpaceScreenState extends ConsumerState<CreativeSpaceScreen> {
                             ),
                             selected: isSelected,
                             selectedColor: Theme.of(context).colorScheme.primary,
+                            checkmarkColor: isDark ? Colors.white : const Color(0xFF5C0024),
                             onSelected: (_) => setState(() => _selectedCategory = category),
                           );
                         },

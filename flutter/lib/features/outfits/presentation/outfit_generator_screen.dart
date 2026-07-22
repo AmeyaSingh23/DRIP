@@ -339,6 +339,12 @@ class _OutfitGeneratorScreenState extends ConsumerState<OutfitGeneratorScreen> {
         setState(() {
           _preview = null;
           _saveIdempotencyKey = null;
+          _occasion.clear();
+          _notes.clear();
+          _location = null;
+          _wearAt = DateTime.now();
+          _weatherState = _WeatherState.idle;
+          _weatherContext = null;
         });
       }
     } on DioException catch (error) {
@@ -354,8 +360,10 @@ class _OutfitGeneratorScreenState extends ConsumerState<OutfitGeneratorScreen> {
     final canGenerate = !busy && _weatherState != _WeatherState.loading;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
-    return PopScope(
-      canPop: !busy,
+    return GestureDetector(
+      onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+      child: PopScope(
+        canPop: !busy,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop && busy && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -368,6 +376,7 @@ class _OutfitGeneratorScreenState extends ConsumerState<OutfitGeneratorScreen> {
         }
       },
       child: Scaffold(
+        extendBody: true,
         backgroundColor: Colors.transparent,
         body: CustomScrollView(
           physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
@@ -643,24 +652,7 @@ class _OutfitGeneratorScreenState extends ConsumerState<OutfitGeneratorScreen> {
                       wearAtLabel: _wearAtLabel(context),
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  FilledButton.icon(
-                    onPressed: canGenerate ? _generate : null,
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.all(16),
-                      backgroundColor: Theme.of(context).colorScheme.onSurface,
-                      foregroundColor: isDark ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onPrimary,
-                    ),
-                    icon: _generating ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.auto_awesome_outlined),
-                    label: Text(
-                      _generating
-                          ? 'Creating outfit...'
-                          : _weatherState == _WeatherState.loading
-                          ? 'Checking weather...'
-                          : 'Generate outfit',
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                  ),
+
                   if (_error != null) ...[
                     const SizedBox(height: 16),
                     ClipRRect(
@@ -670,15 +662,15 @@ class _OutfitGeneratorScreenState extends ConsumerState<OutfitGeneratorScreen> {
                         child: Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: Colors.red.withOpacity(0.1),
-                            border: Border.all(color: Colors.red.withOpacity(0.3)),
+                            color: Colors.deepOrange.withOpacity(0.1),
+                            border: Border.all(color: Colors.deepOrange.withOpacity(0.3)),
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Row(
                             children: [
-                              Icon(Icons.error_outline, color: Colors.red[300]),
+                              Icon(Icons.error_outline, color: Colors.deepOrange[400]),
                               const SizedBox(width: 12),
-                              Expanded(child: Text(_error!, style: TextStyle(color: Colors.red[300]))),
+                              Expanded(child: Text(_error!, style: TextStyle(color: Colors.deepOrange[400]))),
                             ],
                           ),
                         ),
@@ -760,46 +752,146 @@ class _OutfitGeneratorScreenState extends ConsumerState<OutfitGeneratorScreen> {
                               .toList(),
                     ),
                     const SizedBox(height: 24),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: FilledButton.icon(
-                            onPressed: busy ? null : _save,
-                            icon: const Icon(Icons.bookmark_add_outlined),
-                            label: Text(_saving ? 'Saving...' : 'Save outfit'),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed:
-                                busy
-                                    ? null
-                                    : () => context.push(
-                                      '/creative',
-                                      extra: CreativeRouteArgs(
-                                        token: widget.token,
-                                        initialItems: _preview!.items,
-                                        initialName: _preview!.name,
-                                        initialOccasion: _preview!.occasion,
-                                        startCollapsed: true,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: BackdropFilter(
+                                filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFC2185B).withOpacity(isDark ? 0.6 : 0.85),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: isDark ? Colors.white.withOpacity(0.1) : Colors.white.withOpacity(0.2),
+                                    ),
+                                  ),
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: InkWell(
+                                      onTap: busy ? null : _save,
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(vertical: 16),
+                                        child: Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            const Icon(Icons.bookmark_add_outlined, color: Colors.white),
+                                            const SizedBox(width: 8),
+                                            Text(_saving ? 'Saving...' : 'Save outfit', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                                          ],
+                                        ),
                                       ),
                                     ),
-                            icon: const Icon(Icons.palette_outlined),
-                            label: const Text('Style on canvas'),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: BackdropFilter(
+                                filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFC2185B).withOpacity(isDark ? 0.6 : 0.85),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: isDark ? Colors.white.withOpacity(0.1) : Colors.white.withOpacity(0.2),
+                                    ),
+                                  ),
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: InkWell(
+                                      onTap: busy
+                                          ? null
+                                          : () => context.push(
+                                                '/creative',
+                                                extra: CreativeRouteArgs(
+                                                  token: widget.token,
+                                                  initialItems: _preview!.items,
+                                                  initialName: _preview!.name,
+                                                  initialOccasion: _preview!.occasion,
+                                                  startCollapsed: true,
+                                                ),
+                                              ),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(vertical: 16),
+                                        child: Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            const Icon(Icons.palette_outlined, color: Colors.white),
+                                            const SizedBox(width: 8),
+                                            const Text('Style on canvas', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                  ],
+                  const SizedBox(height: 32),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFC2185B).withOpacity(isDark ? 0.6 : 0.85),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isDark ? Colors.white.withOpacity(0.1) : Colors.white.withOpacity(0.2),
                           ),
                         ),
-                      ],
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: canGenerate ? _generate : null,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  if (_generating)
+                                    const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                                  else
+                                    const Icon(Icons.auto_awesome_outlined, color: Colors.white),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    _generating
+                                        ? 'Creating outfit...'
+                                        : _weatherState == _WeatherState.loading
+                                            ? 'Checking weather...'
+                                            : _preview != null
+                                                ? 'Generate again'
+                                                : 'Generate outfit',
+                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
-                  ],
+                  ),
+                  const SizedBox(height: 32),
                 ]),
               ),
             ),
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }
 
 class _WeatherCard extends StatelessWidget {

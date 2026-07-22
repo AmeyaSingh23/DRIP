@@ -344,7 +344,9 @@ class _OutfitDetailScreenState extends ConsumerState<OutfitDetailScreen> {
                                       : Colors.white.withOpacity(0.5),
                                 ),
                               ),
-                              child: ListTile(
+                              child: Material(
+                                type: MaterialType.transparency,
+                                child: ListTile(
                                 onTap:
                                     () => context.push(
                                       '/wardrobe/items/${item.id}',
@@ -388,7 +390,8 @@ class _OutfitDetailScreenState extends ConsumerState<OutfitDetailScreen> {
                             ),
                           ),
                         ),
-                      );
+                      ),
+                    );
                     },
                     childCount: outfit.items.length + 1,
                   ),

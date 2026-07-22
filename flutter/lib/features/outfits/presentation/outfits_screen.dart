@@ -133,6 +133,83 @@ class _OutfitsScreenState extends State<OutfitsScreen> {
       if (mounted) setState(() => _deletingId = null);
     }
   }
+
+  Widget _buildEmptyState({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    Widget? actionButton,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return SliverFillRemaining(
+      hasScrollBody: false,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 36),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? Colors.grey[900]!.withOpacity(0.40)
+                      : Colors.white.withOpacity(0.40),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: isDark
+                        ? Colors.white.withOpacity(0.12)
+                        : Colors.white.withOpacity(0.50),
+                  ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isDark
+                            ? Colors.white.withOpacity(0.08)
+                            : Theme.of(context).colorScheme.primary.withOpacity(0.15),
+                      ),
+                      child: Icon(
+                        icon,
+                        size: 36,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      subtitle,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                          ),
+                    ),
+                    if (actionButton != null) ...[
+                      const SizedBox(height: 24),
+                      actionButton,
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: Colors.transparent,
@@ -179,66 +256,22 @@ class _OutfitsScreenState extends State<OutfitsScreen> {
             ),
           )
         else if (_outfits.isEmpty)
-          SliverFillRemaining(
-            hasScrollBody: false,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(24),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-                      child: Container(
-                        padding: const EdgeInsets.all(32),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? Colors.black.withOpacity(0.3)
-                              : Colors.white.withOpacity(0.4),
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(
-                            color: Theme.of(context).brightness == Brightness.dark
-                                ? Colors.white.withOpacity(0.1)
-                                : Colors.white.withOpacity(0.5),
-                          ),
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.dry_cleaning_outlined,
-                              size: 64,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'No Saved Outfits Yet',
-                              style: Theme.of(context).textTheme.titleLarge,
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Let our AI Stylist create a perfect outfit for you.',
-                              style: Theme.of(context).textTheme.bodyMedium,
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 24),
-                            FilledButton.icon(
-                              onPressed: () async {
-                                await context.push('/outfits/generate', extra: widget.token);
-                                if (mounted) await _load();
-                              },
-                              icon: const Icon(Icons.auto_awesome),
-                              label: const Text('Generate Outfit'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+          _buildEmptyState(
+            icon: Icons.dry_cleaning_outlined,
+            title: 'No Saved Outfits Yet',
+            subtitle: 'Let our AI Stylist create a perfect outfit for you.',
+            actionButton: FilledButton.icon(
+              onPressed: () async {
+                await context.push('/outfits/generate', extra: widget.token);
+                if (mounted) await _load();
+              },
+              style: FilledButton.styleFrom(
+                foregroundColor: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white
+                    : Theme.of(context).colorScheme.onSurface,
               ),
+              icon: const Icon(Icons.auto_awesome),
+              label: const Text('Generate Outfit'),
             ),
           )
         else
