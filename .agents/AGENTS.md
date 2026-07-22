@@ -14,3 +14,7 @@
   - DO NOT use `SingleChildScrollView` with a standard column and a floating `AppBar` in the `Scaffold`. 
   - INSTEAD, wrap the page in a `CustomScrollView` with `physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics())`.
   - Place a `SliverAppBar` with its own `BackdropFilter` inside the `CustomScrollView`'s slivers, and make the `Scaffold` background completely transparent. This groups the scroll translation in the same compositing layer and solves the blur rendering issue seamlessly while retaining the `BackdropFilter` on list tiles.
+
+## Git & Version Control Rules
+- **Explicit Push Confirmation:** NEVER execute `git commit` or `git push` without asking for and receiving explicit approval from the user first. Always allow local testing first.
+
