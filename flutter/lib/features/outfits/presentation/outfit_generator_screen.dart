@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -10,6 +11,8 @@ import 'package:uuid/uuid.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../../core/widgets/cached_wardrobe_image.dart';
+import '../../../core/widgets/glass_date_picker_dialog.dart';
+import '../../../core/widgets/glass_time_picker.dart';
 import '../../creative/presentation/creative_space_screen.dart';
 import '../../wardrobe/presentation/wardrobe_change_notifier.dart';
 import '../data/outfit_repository.dart';
@@ -168,6 +171,7 @@ class _OutfitGeneratorScreenState extends ConsumerState<OutfitGeneratorScreen> {
     final location = await showModalBottomSheet<OutfitLocation>(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder:
           (_) => CityPickerSheet(token: widget.token, repository: _repository),
     );
@@ -181,20 +185,25 @@ class _OutfitGeneratorScreenState extends ConsumerState<OutfitGeneratorScreen> {
 
   Future<void> _pickWearAt() async {
     final now = DateTime.now();
-    final date = await showDatePicker(
+    final date = await showDialog<DateTime>(
       context: context,
-      initialDate: _wearAt.isBefore(now) ? now : _wearAt,
-      firstDate: DateTime(now.year, now.month, now.day),
-      lastDate: now.add(const Duration(days: 15)),
+      barrierColor: Colors.black26,
+      builder: (context) => GlassDatePickerDialog(
+        initialDate: _wearAt.isBefore(now) ? now : _wearAt,
+        firstDate: DateTime(now.year, now.month, now.day),
+        lastDate: now.add(const Duration(days: 15)),
+      ),
     );
     if (date == null || !mounted) return;
-    final time = await showTimePicker(
+    
+    final time = await showGlassTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(
         _wearAt.isBefore(now) ? now : _wearAt,
       ),
     );
     if (time == null || !mounted) return;
+    
     setState(
       () =>
           _wearAt = DateTime(
@@ -205,11 +214,6 @@ class _OutfitGeneratorScreenState extends ConsumerState<OutfitGeneratorScreen> {
             time.minute,
           ),
     );
-    _weatherInputsChanged();
-  }
-
-  void _useNow() {
-    setState(() => _wearAt = DateTime.now());
     _weatherInputsChanged();
   }
 
@@ -348,6 +352,8 @@ class _OutfitGeneratorScreenState extends ConsumerState<OutfitGeneratorScreen> {
   Widget build(BuildContext context) {
     final busy = _generating || _saving;
     final canGenerate = !busy && _weatherState != _WeatherState.loading;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return PopScope(
       canPop: !busy,
       onPopInvokedWithResult: (didPop, _) {
@@ -362,238 +368,433 @@ class _OutfitGeneratorScreenState extends ConsumerState<OutfitGeneratorScreen> {
         }
       },
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Create an outfit'),
-          automaticallyImplyLeading: !busy,
-        ),
-        body: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            Text(
-              'Use your wardrobe',
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Suggestions use your saved items only. Generation is a preview until you choose Save.',
-            ),
-            const SizedBox(height: 20),
-            TextField(
-              controller: _occasion,
-              enabled: !busy,
-              maxLength: 50,
-              decoration: const InputDecoration(
-                labelText: 'Occasion (optional)',
-                hintText: 'College, dinner, gym...',
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _notes,
-              enabled: !busy,
-              maxLength: 240,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Mood / vibe (optional)',
-                hintText: 'Comfortable, minimal, colourful...',
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'When will you wear it?',
-              style: Theme.of(context).textTheme.titleSmall,
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 10,
-              runSpacing: 8,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: busy ? null : _useNow,
-                  icon: const Icon(Icons.schedule),
-                  label: const Text('Now'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: busy ? null : _pickWearAt,
-                  icon: const Icon(Icons.calendar_month_outlined),
-                  label: Text(_wearAtLabel(context)),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Where will you be?',
-              style: Theme.of(context).textTheme.titleSmall,
-            ),
-            if (_location != null)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.place_outlined),
-                title: Text(
-                  _isCurrentLocation ? 'Current location' : _location!.name,
-                ),
-                subtitle: const Text(
-                  'Used only to check weather for this outfit',
-                ),
-                trailing: IconButton(
-                  tooltip: 'Clear location',
-                  onPressed:
-                      busy
-                          ? null
-                          : () {
-                            setState(() {
-                              _location = null;
-                              _isCurrentLocation = false;
-                            });
-                            _weatherInputsChanged();
-                          },
-                  icon: const Icon(Icons.close),
-                ),
-              ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 10,
-              runSpacing: 8,
-              children: [
-                OutlinedButton.icon(
-                  onPressed:
-                      busy || _gettingLocation ? null : _useCurrentLocation,
-                  icon: const Icon(Icons.my_location_outlined),
-                  label: Text(
-                    _gettingLocation
-                        ? 'Finding location...'
-                        : 'Use my location',
+        backgroundColor: Colors.transparent,
+        body: CustomScrollView(
+          physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+          slivers: [
+            SliverAppBar(
+              title: const Text('Create an outfit'),
+              automaticallyImplyLeading: !busy,
+              floating: false,
+              pinned: true,
+              backgroundColor: Colors.transparent,
+              flexibleSpace: ClipRect(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                  child: Container(
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.grey[900]!.withOpacity(0.50)
+                        : Colors.white.withOpacity(0.50),
                   ),
                 ),
-                OutlinedButton.icon(
-                  onPressed: busy ? null : _chooseCity,
-                  icon: const Icon(Icons.search),
-                  label: const Text('Choose a city'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            _WeatherCard(
-              state: _weatherState,
-              weather: _weatherContext,
-              location: _location,
-              wearAtLabel: _wearAtLabel(context),
-            ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: canGenerate ? _generate : null,
-              icon: const Icon(Icons.auto_awesome_outlined),
-              label: Text(
-                _generating
-                    ? 'Creating outfit...'
-                    : _weatherState == _WeatherState.loading
-                    ? 'Checking weather...'
-                    : 'Generate outfit',
               ),
             ),
-            if (_generating) ...[
-              const SizedBox(height: 16),
-              const LinearProgressIndicator(),
-            ],
-            if (_error != null) ...[
-              const SizedBox(height: 16),
-              Text(_error!, style: const TextStyle(color: Colors.red)),
-            ],
-            if (_preview != null) ...[
-              const SizedBox(height: 28),
-              if (_preview!.isQuickPick) ...[
-                const _InfoBanner(
-                  message:
-                      'Couldn’t create a personalised outfit right now. Here’s a simple combination from your wardrobe.',
-                ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: busy || _retrySeconds > 0 ? null : _generate,
-                  icon: const Icon(Icons.refresh),
-                  label: Text(
-                    _retrySeconds > 0
-                        ? 'Try again in ${_retrySeconds}s'
-                        : 'Try again',
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: isDark ? Colors.black.withOpacity(0.3) : Colors.white.withOpacity(0.4),
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(
+                            color: isDark ? Colors.white.withOpacity(0.1) : Colors.white.withOpacity(0.5),
+                          ),
+                        ),
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Stylist preferences',
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Describe your mood and occasion. Suggestions use items saved in your wardrobe.',
+                              style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                            ),
+                            const SizedBox(height: 24),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text('Occasion (optional)', style: TextStyle(fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurface)),
+                                ListenableBuilder(
+                                  listenable: _occasion,
+                                  builder: (context, _) => Text(
+                                    '${_occasion.text.length}/50',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: _occasion,
+                              enabled: !busy,
+                              maxLength: 50,
+                              decoration: InputDecoration(
+                                hintText: 'College, dinner, gym...',
+                                hintStyle: TextStyle(
+                                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+                                ),
+                                counterText: '',
+                                filled: true,
+                                fillColor: isDark ? Colors.grey[900]!.withOpacity(0.4) : Colors.white.withOpacity(0.5),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  borderSide: BorderSide.none,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text('Mood / vibe (optional)', style: TextStyle(fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurface)),
+                                ListenableBuilder(
+                                  listenable: _notes,
+                                  builder: (context, _) => Text(
+                                    '${_notes.text.length}/240',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: _notes,
+                              enabled: !busy,
+                              maxLength: 240,
+                              maxLines: 3,
+                              decoration: InputDecoration(
+                                hintText: 'Comfortable, minimal, colourful...',
+                                hintStyle: TextStyle(
+                                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+                                ),
+                                counterText: '',
+                                filled: true,
+                                fillColor: isDark ? Colors.grey[900]!.withOpacity(0.4) : Colors.white.withOpacity(0.5),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  borderSide: BorderSide.none,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-              ],
-              Text(
-                _preview!.name,
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 8),
-              Text(_preview!.rationale),
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children:
-                    _preview!.items
-                        .map(
-                          (item) => SizedBox(
-                            width: 150,
-                            height: 190,
-                            child: Card(
-                              clipBehavior: Clip.antiAlias,
-                              child: Column(
-                                children: [
-                                  Expanded(
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(8),
-                                      child: CachedWardrobeImage(
-                                        url: item.cloudinaryUrl,
+                  const SizedBox(height: 16),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: isDark ? Colors.black.withOpacity(0.3) : Colors.white.withOpacity(0.4),
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(
+                            color: isDark ? Colors.white.withOpacity(0.1) : Colors.white.withOpacity(0.5),
+                          ),
+                        ),
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'When & Where?',
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'When will you wear it?',
+                              style: Theme.of(context).textTheme.titleSmall,
+                            ),
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              width: double.infinity,
+                              child: FilledButton.icon(
+                                onPressed: busy ? null : _pickWearAt,
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: isDark ? Colors.grey[800]!.withOpacity(0.5) : Colors.white.withOpacity(0.7),
+                                  foregroundColor: Theme.of(context).colorScheme.onSurface,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                ),
+                                icon: const Icon(Icons.calendar_month_outlined),
+                                label: Text(
+                                  _wearAtLabel(context),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            Text(
+                              'Where will you be?',
+                              style: Theme.of(context).textTheme.titleSmall,
+                            ),
+                            const SizedBox(height: 12),
+                            if (_location != null) ...[
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: isDark ? Colors.grey[900]!.withOpacity(0.4) : Colors.white.withOpacity(0.5),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.place_outlined, color: Theme.of(context).colorScheme.primary),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            _isCurrentLocation ? 'Current location' : _location!.name,
+                                            style: const TextStyle(fontWeight: FontWeight.w600),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            'Used for weather checks',
+                                            style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Clear location',
+                                      onPressed: busy ? null : () {
+                                        setState(() {
+                                          _location = null;
+                                          _isCurrentLocation = false;
+                                        });
+                                        _weatherInputsChanged();
+                                      },
+                                      icon: const Icon(Icons.close),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                            ],
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: FilledButton.icon(
+                                    onPressed: busy || _gettingLocation ? null : _useCurrentLocation,
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: isDark ? Colors.grey[800]!.withOpacity(0.5) : Colors.white.withOpacity(0.7),
+                                      foregroundColor: Theme.of(context).colorScheme.onSurface,
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                    ),
+                                    icon: const Icon(Icons.my_location_outlined),
+                                    label: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Text(
+                                        _gettingLocation ? 'Finding...' : 'My location',
                                       ),
                                     ),
                                   ),
-                                  Padding(
-                                    padding: const EdgeInsets.all(8),
-                                    child: Text(
-                                      item.itemName ?? item.category,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: FilledButton.icon(
+                                    onPressed: busy ? null : _chooseCity,
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: isDark ? Colors.grey[800]!.withOpacity(0.5) : Colors.white.withOpacity(0.7),
+                                      foregroundColor: Theme.of(context).colorScheme.onSurface,
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                    ),
+                                    icon: const Icon(Icons.search),
+                                    label: const FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Text(
+                                        'Choose a city',
+                                      ),
                                     ),
                                   ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        )
-                        .toList(),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: busy ? null : _save,
-                      icon: const Icon(Icons.bookmark_add_outlined),
-                      label: Text(_saving ? 'Saving...' : 'Save outfit'),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed:
-                          busy
-                              ? null
-                              : () => context.push(
-                                '/creative',
-                                extra: CreativeRouteArgs(
-                                  token: widget.token,
-                                  initialItems: _preview!.items,
-                                  initialName: _preview!.name,
-                                  initialOccasion: _preview!.occasion,
-                                  startCollapsed: true,
                                 ),
-                              ),
-                      icon: const Icon(Icons.palette_outlined),
-                      label: const Text('Style on canvas'),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
-                ],
+                  const SizedBox(height: 16),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    child: _WeatherCard(
+                      key: ValueKey('$_weatherState-${_weatherContext?.condition}'),
+                      state: _weatherState,
+                      weather: _weatherContext,
+                      location: _location,
+                      wearAtLabel: _wearAtLabel(context),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  FilledButton.icon(
+                    onPressed: canGenerate ? _generate : null,
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.all(16),
+                      backgroundColor: Theme.of(context).colorScheme.onSurface,
+                      foregroundColor: isDark ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onPrimary,
+                    ),
+                    icon: _generating ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.auto_awesome_outlined),
+                    label: Text(
+                      _generating
+                          ? 'Creating outfit...'
+                          : _weatherState == _WeatherState.loading
+                          ? 'Checking weather...'
+                          : 'Generate outfit',
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 16),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(0.1),
+                            border: Border.all(color: Colors.red.withOpacity(0.3)),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.error_outline, color: Colors.red[300]),
+                              const SizedBox(width: 12),
+                              Expanded(child: Text(_error!, style: TextStyle(color: Colors.red[300]))),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (_preview != null) ...[
+                    const SizedBox(height: 28),
+                    if (_preview!.isQuickPick) ...[
+                      const _InfoBanner(
+                        message:
+                            'Couldn’t create a personalised outfit right now. Here’s a simple combination from your wardrobe.',
+                      ),
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        onPressed: busy || _retrySeconds > 0 ? null : _generate,
+                        icon: const Icon(Icons.refresh),
+                        label: Text(
+                          _retrySeconds > 0
+                              ? 'Try again in ${_retrySeconds}s'
+                              : 'Try again',
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    Text(
+                      _preview!.name,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(_preview!.rationale),
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children:
+                          _preview!.items
+                              .map(
+                                (item) => SizedBox(
+                                  width: 150,
+                                  height: 190,
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(16),
+                                    child: BackdropFilter(
+                                      filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: isDark ? Colors.black.withOpacity(0.3) : Colors.white.withOpacity(0.4),
+                                          borderRadius: BorderRadius.circular(16),
+                                          border: Border.all(
+                                            color: isDark ? Colors.white.withOpacity(0.1) : Colors.white.withOpacity(0.5),
+                                          ),
+                                        ),
+                                        child: Column(
+                                          children: [
+                                            Expanded(
+                                              child: Padding(
+                                                padding: const EdgeInsets.all(8),
+                                                child: CachedWardrobeImage(
+                                                  url: item.cloudinaryUrl,
+                                                ),
+                                              ),
+                                            ),
+                                            Padding(
+                                              padding: const EdgeInsets.all(8),
+                                              child: Text(
+                                                item.itemName ?? item.category,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: busy ? null : _save,
+                            icon: const Icon(Icons.bookmark_add_outlined),
+                            label: Text(_saving ? 'Saving...' : 'Save outfit'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed:
+                                busy
+                                    ? null
+                                    : () => context.push(
+                                      '/creative',
+                                      extra: CreativeRouteArgs(
+                                        token: widget.token,
+                                        initialItems: _preview!.items,
+                                        initialName: _preview!.name,
+                                        initialOccasion: _preview!.occasion,
+                                        startCollapsed: true,
+                                      ),
+                                    ),
+                            icon: const Icon(Icons.palette_outlined),
+                            label: const Text('Style on canvas'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ]),
               ),
-            ],
+            ),
           ],
         ),
       ),
@@ -603,6 +804,7 @@ class _OutfitGeneratorScreenState extends ConsumerState<OutfitGeneratorScreen> {
 
 class _WeatherCard extends StatelessWidget {
   const _WeatherCard({
+    super.key,
     required this.state,
     required this.weather,
     required this.location,
@@ -623,18 +825,33 @@ class _WeatherCard extends StatelessWidget {
       );
     }
     if (state == _WeatherState.loading) {
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('${location!.name} · $wearAtLabel'),
-              const SizedBox(height: 10),
-              const LinearProgressIndicator(),
-              const SizedBox(height: 8),
-              const Text('Checking weather...'),
-            ],
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.black.withOpacity(0.3)
+                  : Colors.white.withOpacity(0.4),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white.withOpacity(0.1)
+                    : Colors.white.withOpacity(0.5),
+              ),
+            ),
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${location!.name} · $wearAtLabel'),
+                const SizedBox(height: 10),
+                const LinearProgressIndicator(),
+                const SizedBox(height: 8),
+                const Text('Checking weather...'),
+              ],
+            ),
           ),
         ),
       );
@@ -654,31 +871,46 @@ class _WeatherCard extends StatelessWidget {
       if (weather!.windSpeedKmh != null)
         '${weather!.windSpeedKmh!.round()} km/h wind',
     ];
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '${weather!.locationName} · ${weather!.timeOfDay}',
-              style: const TextStyle(fontWeight: FontWeight.w600),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).brightness == Brightness.dark
+                ? Colors.black.withOpacity(0.3)
+                : Colors.white.withOpacity(0.4),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.white.withOpacity(0.1)
+                  : Colors.white.withOpacity(0.5),
             ),
-            const SizedBox(height: 4),
-            Text(details.join(' · ')),
-            if (weather!.considerations.isNotEmpty) ...[
+          ),
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${weather!.locationName} · ${weather!.timeOfDay}',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 4),
+              Text(details.join(' · ')),
+              if (weather!.considerations.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  weather!.considerations.first,
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                ),
+              ],
               const SizedBox(height: 8),
               Text(
-                weather!.considerations.first,
-                style: const TextStyle(color: Colors.black54),
+                'Weather data by Open-Meteo',
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5), fontSize: 12),
               ),
             ],
-            const SizedBox(height: 8),
-            const Text(
-              'Weather data by Open-Meteo',
-              style: TextStyle(color: Colors.black45, fontSize: 12),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -691,13 +923,26 @@ class _InfoBanner extends StatelessWidget {
   final String message;
 
   @override
-  Widget build(BuildContext context) => Container(
-    width: double.infinity,
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(12),
+  Widget build(BuildContext context) => ClipRRect(
+    borderRadius: BorderRadius.circular(12),
+    child: BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Theme.of(context).brightness == Brightness.dark
+              ? Colors.black.withOpacity(0.3)
+              : Colors.white.withOpacity(0.4),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Theme.of(context).brightness == Brightness.dark
+                ? Colors.white.withOpacity(0.1)
+                : Colors.white.withOpacity(0.5),
+          ),
+        ),
+        child: Text(message),
+      ),
     ),
-    child: Text(message),
   );
 }

@@ -18,3 +18,5 @@
 ## Git & Version Control Rules
 - **Explicit Push Confirmation:** NEVER execute `git commit` or `git push` without asking for and receiving explicit approval from the user first. Always allow local testing first.
 
+## Contrast & Theming Rules
+- **Pink Backgrounds:** Never use white text inside a baby pink box or background. Always use a dark color (e.g., black or dark maroon) for text on baby pink to maintain readability and contrast.

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -79,45 +80,72 @@ class _CityPickerSheetState extends State<CityPickerSheet> {
   Widget build(BuildContext context) => SafeArea(
     child: Padding(
       padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + MediaQuery.viewInsetsOf(context).bottom),
-      child: SizedBox(
-        height: 440,
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Choose a city', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _search,
-            autofocus: true,
-            onChanged: _onChanged,
-            decoration: InputDecoration(
-              hintText: 'Mumbai, London, Tokyo...',
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: _loading
-                  ? const Padding(
-                      padding: EdgeInsets.all(12),
-                      child: SizedBox(width: 24, height: 24, child: HangerLoadingIndicator(size: 24.0)),
-                    )
-                  : null,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+          child: Container(
+            height: 440,
+            decoration: BoxDecoration(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.grey[900]!.withOpacity(0.50)
+                  : Colors.white.withOpacity(0.50),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white.withOpacity(0.1)
+                    : Colors.white.withOpacity(0.5),
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          if (_error != null) Text(_error!, style: const TextStyle(color: Colors.red)),
-          Expanded(
-            child: _results.isEmpty
-                ? const Center(child: Text('Search for the city where you will be.'))
-                : ListView.separated(
-                    itemCount: _results.length,
-                    separatorBuilder: (_, _) => const Divider(height: 1),
-                    itemBuilder: (_, index) {
-                      final location = _results[index];
-                      return ListTile(
-                        leading: const Icon(Icons.location_city_outlined),
-                        title: Text(location.name),
-                        onTap: () => Navigator.of(context).pop(location),
-                      );
-                    },
+            padding: const EdgeInsets.all(20),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Choose a city', style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _search,
+                autofocus: true,
+                onChanged: _onChanged,
+                decoration: InputDecoration(
+                  hintText: 'Mumbai, London, Tokyo...',
+                  prefixIcon: const Icon(Icons.search),
+                  filled: true,
+                  fillColor: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.black.withOpacity(0.3)
+                      : Colors.white.withOpacity(0.3),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide.none,
                   ),
+                  suffixIcon: _loading
+                      ? const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: SizedBox(width: 24, height: 24, child: HangerLoadingIndicator(size: 24.0)),
+                        )
+                      : null,
+                ),
+              ),
+              const SizedBox(height: 16),
+              if (_error != null) Text(_error!, style: const TextStyle(color: Colors.red)),
+              Expanded(
+                child: _results.isEmpty
+                    ? const Center(child: Text('Search for the city where you will be.'))
+                    : ListView.separated(
+                        itemCount: _results.length,
+                        physics: const BouncingScrollPhysics(),
+                        separatorBuilder: (_, _) => Divider(height: 1, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.1)),
+                        itemBuilder: (_, index) {
+                          final location = _results[index];
+                          return ListTile(
+                            leading: const Icon(Icons.location_city_outlined),
+                            title: Text(location.name),
+                            onTap: () => Navigator.of(context).pop(location),
+                          );
+                        },
+                      ),
+              ),
+            ]),
           ),
-        ]),
+        ),
       ),
     ),
   );

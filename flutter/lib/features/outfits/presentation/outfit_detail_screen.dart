@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -63,21 +65,46 @@ class _OutfitDetailScreenState extends ConsumerState<OutfitDetailScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder:
-          (context) => AlertDialog(
-            title: const Text('Archive outfit?'),
-            content: const Text(
-              'This hides the outfit from saved outfits while preserving calendar history.',
+          (context) => BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+            child: AlertDialog(
+              backgroundColor: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.grey[900]!.withOpacity(0.50)
+                  : Colors.white.withOpacity(0.50),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+                side: BorderSide(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.white.withOpacity(0.1)
+                      : Colors.white.withOpacity(0.5),
+                  width: 1,
+                ),
+              ),
+              title: Text('Archive outfit?', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+              content: Text(
+                'This hides the outfit from saved outfits while preserving calendar history.',
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Theme.of(context).colorScheme.onSurface,
+                  ),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.onSurface,
+                    foregroundColor: Theme.of(context).brightness == Brightness.dark
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.onPrimary,
+                  ),
+                  child: const Text('Archive'),
+                ),
+              ],
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Archive'),
-              ),
-            ],
           ),
     );
     if (confirmed != true) return;
@@ -167,76 +194,99 @@ class _OutfitDetailScreenState extends ConsumerState<OutfitDetailScreen> {
         }
       },
       child: Scaffold(
-        appBar: AppBar(
-          title: Text(outfit?.name ?? 'Outfit'),
-          automaticallyImplyLeading: !_deleting,
-          actions: [
-            if (outfit != null)
-              IconButton(
-                onPressed: _deleting
-                    ? null
-                    : (outfit.isArchived
-                        ? () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Restore this outfit before editing details.')),
-                            );
-                          }
-                        : _editDetails),
-                icon: Icon(
-                  Icons.edit_note_outlined,
-                  color: outfit.isArchived ? Theme.of(context).colorScheme.onSurface.withOpacity(0.3) : null,
+        backgroundColor: Colors.transparent,
+        body: CustomScrollView(
+          physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+          slivers: [
+            SliverAppBar(
+              title: Text(outfit?.name ?? 'Outfit'),
+              automaticallyImplyLeading: !_deleting,
+              floating: false,
+              pinned: true,
+              backgroundColor: Colors.transparent,
+              flexibleSpace: ClipRect(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                  child: Container(
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.grey[900]!.withOpacity(0.50)
+                        : Colors.white.withOpacity(0.50),
+                  ),
                 ),
-                tooltip: outfit.isArchived ? 'Restore outfit to edit details' : 'Edit outfit details',
               ),
-            if (outfit != null)
-              IconButton(
-                onPressed: _deleting
-                    ? null
-                    : (outfit.isArchived
-                        ? () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Restore this outfit before styling on canvas.')),
-                            );
-                          }
-                        : () async {
-                            await context.push(
-                              '/creative',
-                              extra: CreativeRouteArgs(
-                                token: widget.token,
-                                initialItems: outfit.items,
-                                initialName: outfit.name,
-                                initialOccasion: outfit.occasion,
-                                initialLayout: outfit.itemLayout,
-                                editingOutfitId: outfit.id,
-                                startCollapsed: true,
-                              ),
-                            );
-                            if (mounted) await _load();
-                          }),
-                icon: Icon(
-                  Icons.palette_outlined,
-                  color: outfit.isArchived ? Theme.of(context).colorScheme.onSurface.withOpacity(0.3) : null,
-                ),
-                tooltip: outfit.isArchived ? 'Restore outfit to style on canvas' : 'Style on canvas',
-              ),
-            if (outfit != null)
-              IconButton(
-                onPressed: _deleting
-                    ? null
-                    : (outfit.isArchived ? _restoreOutfit : _delete),
-                icon: Icon(outfit.isArchived ? Icons.restore : Icons.archive_outlined),
-                tooltip: outfit.isArchived ? 'Restore outfit' : 'Archive outfit',
-              ),
-          ],
-        ),
-        body:
-            _error != null
-                ? Center(child: Text(_error!))
-                : outfit == null
-                ? const Center(child: HangerLoadingIndicator())
-                : ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
+              actions: [
+                if (outfit != null)
+                  IconButton(
+                    onPressed: _deleting
+                        ? null
+                        : (outfit.isArchived
+                            ? () {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Restore this outfit before editing details.')),
+                                );
+                              }
+                            : _editDetails),
+                    icon: Icon(
+                      Icons.edit_note_outlined,
+                      color: outfit.isArchived ? Theme.of(context).colorScheme.onSurface.withOpacity(0.3) : null,
+                    ),
+                    tooltip: outfit.isArchived ? 'Restore outfit to edit details' : 'Edit outfit details',
+                  ),
+                if (outfit != null)
+                  IconButton(
+                    onPressed: _deleting
+                        ? null
+                        : (outfit.isArchived
+                            ? () {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Restore this outfit before styling on canvas.')),
+                                );
+                              }
+                            : () async {
+                                await context.push(
+                                  '/creative',
+                                  extra: CreativeRouteArgs(
+                                    token: widget.token,
+                                    initialItems: outfit.items,
+                                    initialName: outfit.name,
+                                    initialOccasion: outfit.occasion,
+                                    initialLayout: outfit.itemLayout,
+                                    editingOutfitId: outfit.id,
+                                    startCollapsed: true,
+                                  ),
+                                );
+                                if (mounted) await _load();
+                              }),
+                    icon: Icon(
+                      Icons.palette_outlined,
+                      color: outfit.isArchived ? Theme.of(context).colorScheme.onSurface.withOpacity(0.3) : null,
+                    ),
+                    tooltip: outfit.isArchived ? 'Restore outfit to style on canvas' : 'Style on canvas',
+                  ),
+                if (outfit != null)
+                  IconButton(
+                    onPressed: _deleting
+                        ? null
+                        : (outfit.isArchived ? _restoreOutfit : _delete),
+                    icon: Icon(outfit.isArchived ? Icons.restore : Icons.archive_outlined),
+                    tooltip: outfit.isArchived ? 'Restore outfit' : 'Archive outfit',
+                  ),
+              ],
+            ),
+            if (_error != null)
+              SliverFillRemaining(child: Center(child: Text(_error!)))
+            else if (outfit == null)
+              const SliverFillRemaining(child: Center(child: HangerLoadingIndicator()))
+            else
+              SliverPadding(
+                padding: const EdgeInsets.all(16),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      if (index == 0) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                     if (outfit.isArchived)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 16),
@@ -270,33 +320,82 @@ class _OutfitDetailScreenState extends ConsumerState<OutfitDetailScreen> {
                       '${outfit.items.length} wardrobe items',
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
-                    const SizedBox(height: 10),
-                    ...outfit.items.map(
-                      (item) => Card(
-                        child: ListTile(
-                          onTap:
-                              () => context.push(
-                                '/wardrobe/items/${item.id}',
-                                extra: widget.token,
+                            const SizedBox(height: 10),
+                          ],
+                        );
+                      }
+                      
+                      final item = outfit.items[index - 1];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).brightness == Brightness.dark
+                                    ? Colors.black.withOpacity(0.3)
+                                    : Colors.white.withOpacity(0.4),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: Theme.of(context).brightness == Brightness.dark
+                                      ? Colors.white.withOpacity(0.1)
+                                      : Colors.white.withOpacity(0.5),
+                                ),
                               ),
-                          leading: SizedBox(
-                            width: 56,
-                            height: 56,
-                            child: CachedWardrobeImage(url: item.cloudinaryUrl),
+                              child: ListTile(
+                                onTap:
+                                    () => context.push(
+                                      '/wardrobe/items/${item.id}',
+                                      extra: widget.token,
+                                    ),
+                                leading: SizedBox(
+                                  width: 56,
+                                  height: 56,
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: BackdropFilter(
+                                      filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: Theme.of(context).brightness == Brightness.dark 
+                                              ? Colors.black.withOpacity(0.3) 
+                                              : Colors.white.withOpacity(0.4),
+                                          borderRadius: BorderRadius.circular(8),
+                                          border: Border.all(
+                                            color: Theme.of(context).brightness == Brightness.dark 
+                                                ? Colors.white.withOpacity(0.1) 
+                                                : Colors.white.withOpacity(0.5),
+                                            width: 1,
+                                          ),
+                                        ),
+                                        padding: const EdgeInsets.all(4),
+                                        child: CachedWardrobeImage(url: item.cloudinaryUrl),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                title: Text(item.itemName ?? item.category),
+                                subtitle: Text(
+                                  [
+                                    item.color,
+                                    item.pattern,
+                                  ].whereType<String>().join(' · '),
+                                ),
+                                trailing: const Icon(Icons.chevron_right),
+                              ),
+                            ),
                           ),
-                          title: Text(item.itemName ?? item.category),
-                          subtitle: Text(
-                            [
-                              item.color,
-                              item.pattern,
-                            ].whereType<String>().join(' · '),
-                          ),
-                          trailing: const Icon(Icons.chevron_right),
                         ),
-                      ),
-                    ),
-                  ],
+                      );
+                    },
+                    childCount: outfit.items.length + 1,
+                  ),
                 ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -336,43 +435,126 @@ class _OutfitDetailsDialogState extends State<_OutfitDetailsDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Edit outfit details'),
-    content: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        TextField(
-          controller: _name,
-          maxLength: 120,
-          decoration: const InputDecoration(labelText: 'Outfit name'),
+  Widget build(BuildContext context) => BackdropFilter(
+    filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+    child: AlertDialog(
+      backgroundColor: Theme.of(context).brightness == Brightness.dark
+          ? Colors.grey[900]!.withOpacity(0.50)
+          : Colors.white.withOpacity(0.50),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(
+          color: Theme.of(context).brightness == Brightness.dark
+              ? Colors.white.withOpacity(0.1)
+              : Colors.white.withOpacity(0.5),
+          width: 1,
         ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _occasion,
-          maxLength: 50,
-          decoration: const InputDecoration(labelText: 'Occasion (optional)'),
+      ),
+      title: Text('Edit outfit details', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Outfit Name', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
+                ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: _name,
+                  builder: (context, value, _) => Text(
+                    '${value.text.length}/120',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _name,
+              maxLength: 120,
+              decoration: InputDecoration(
+                counterText: '',
+                filled: true,
+                fillColor: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.black.withOpacity(0.3)
+                    : Colors.white.withOpacity(0.3),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Occasion (optional)', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
+                ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: _occasion,
+                  builder: (context, value, _) => Text(
+                    '${value.text.length}/50',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _occasion,
+              maxLength: 50,
+              decoration: InputDecoration(
+                counterText: '',
+                filled: true,
+                fillColor: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.black.withOpacity(0.3)
+                    : Colors.white.withOpacity(0.3),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          style: TextButton.styleFrom(
+            foregroundColor: Theme.of(context).colorScheme.onSurface,
+          ),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed:
+              () => Navigator.pop(
+                context,
+                _OutfitDetails(
+                  name: _name.text.trim().isEmpty ? null : _name.text.trim(),
+                  occasion:
+                      _occasion.text.trim().isEmpty
+                          ? null
+                          : _occasion.text.trim(),
+                ),
+              ),
+          style: FilledButton.styleFrom(
+            backgroundColor: Theme.of(context).colorScheme.onSurface,
+            foregroundColor: Theme.of(context).brightness == Brightness.dark
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).colorScheme.onPrimary,
+          ),
+          child: const Text('Save'),
         ),
       ],
     ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
-      ),
-      FilledButton(
-        onPressed:
-            () => Navigator.pop(
-              context,
-              _OutfitDetails(
-                name: _name.text.trim().isEmpty ? null : _name.text.trim(),
-                occasion:
-                    _occasion.text.trim().isEmpty
-                        ? null
-                        : _occasion.text.trim(),
-              ),
-            ),
-        child: const Text('Save'),
-      ),
-    ],
   );
 }
