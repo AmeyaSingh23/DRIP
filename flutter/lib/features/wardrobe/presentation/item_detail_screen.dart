@@ -338,6 +338,7 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
   Widget build(BuildContext context) {
     final item = _item;
     final usage = _usage;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return PopScope(
       canPop: !_mutating,
       onPopInvokedWithResult: (didPop, _) {
@@ -350,34 +351,46 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
         }
       },
       child: Scaffold(
-        backgroundColor: Colors.transparent,
-        body:
+        backgroundColor: isDark ? const Color(0xFF2A1B22) : const Color(0xFFFFF5F7),
+        body: Stack(
+          children: [
+            Positioned.fill(
+              child: Opacity(
+                opacity: isDark ? 0.35 : 0.25,
+                child: Image.asset(
+                  isDark
+                      ? 'assets/images/dark_leopard_texture.png'
+                      : 'assets/images/leopard_texture.png',
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
             _loading
                 ? const Center(child: HangerLoadingIndicator())
                 : _error != null
-                ? Center(
-                  child: FilledButton.icon(
-                    onPressed: _load,
-                    icon: const Icon(Icons.refresh),
-                    label: Text(_error!),
-                  ),
-                )
-                : item == null || usage == null
-                ? const SizedBox.shrink()
-                : CustomScrollView(
-                  physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-                  slivers: [
-                    SliverAppBar(
-                      pinned: true,
-                      backgroundColor: Colors.transparent,
-                      elevation: 0,
-                      flexibleSpace: ClipRRect(
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                          child: Container(
-                            color: Theme.of(context).brightness == Brightness.dark 
-                                ? Colors.black.withOpacity(0.2) 
-                                : Colors.white.withOpacity(0.3),
+                    ? Center(
+                        child: FilledButton.icon(
+                          onPressed: _load,
+                          icon: const Icon(Icons.refresh),
+                          label: Text(_error!),
+                        ),
+                      )
+                    : item == null || usage == null
+                        ? const SizedBox.shrink()
+                        : CustomScrollView(
+                            physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                            slivers: [
+                              SliverAppBar(
+                                pinned: true,
+                                backgroundColor: Colors.transparent,
+                                elevation: 0,
+                                flexibleSpace: ClipRRect(
+                                  child: BackdropFilter(
+                                    filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                                    child: Container(
+                                      color: Theme.of(context).brightness == Brightness.dark 
+                                          ? Colors.black.withOpacity(0.2) 
+                                          : Colors.white.withOpacity(0.3),
                           ),
                         ),
                       ),
@@ -565,6 +578,8 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
                 ),
               ],
             ),
+          ],
+        ),
       ),
     );
   }

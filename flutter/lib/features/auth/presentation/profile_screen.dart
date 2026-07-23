@@ -346,7 +346,22 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   icon: Icons.inventory_2_outlined,
                   title: 'Archive',
                   subtitle: 'View archived items and outfits',
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ArchiveScreen())),
+                  onTap: () => Navigator.of(context).push(
+                    PageRouteBuilder(
+                      transitionDuration: const Duration(milliseconds: 200),
+                      reverseTransitionDuration: const Duration(milliseconds: 200),
+                      pageBuilder: (context, animation, secondaryAnimation) => const ArchiveScreen(),
+                      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                        return SlideTransition(
+                          position: Tween<Offset>(
+                            begin: const Offset(1.0, 0.0),
+                            end: Offset.zero,
+                          ).chain(CurveTween(curve: Curves.easeOutQuad)).animate(animation),
+                          child: child,
+                        );
+                      },
+                    ),
+                  ),
                 ),
                 _buildGlassTile(
                   icon: Icons.logout,

@@ -482,33 +482,51 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => PopScope(
-    canPop: !_busy,
-    child: GestureDetector(
-      onTap: () => FocusScope.of(context).unfocus(),
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        title: const Text('Add to wardrobe'),
-        automaticallyImplyLeading: !_busy,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        flexibleSpace: ClipRRect(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-            child: Container(
-              color: Theme.of(context).colorScheme.surface,
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return PopScope(
+      canPop: !_busy,
+      child: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: Scaffold(
+          backgroundColor: isDark ? const Color(0xFF2A1B22) : const Color(0xFFFFF5F7),
+          extendBodyBehindAppBar: true,
+          appBar: AppBar(
+            title: const Text('Add to wardrobe'),
+            automaticallyImplyLeading: !_busy,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            flexibleSpace: ClipRRect(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                child: Container(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.black.withOpacity(0.2)
+                      : Colors.white.withOpacity(0.3),
+                ),
+              ),
             ),
           ),
-        ),
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          body: Stack(
+            fit: StackFit.expand,
             children: [
+              Positioned.fill(
+                child: Opacity(
+                  opacity: isDark ? 0.35 : 0.25,
+                  child: Image.asset(
+                    isDark
+                        ? 'assets/images/dark_leopard_texture.png'
+                        : 'assets/images/leopard_texture.png',
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+              SafeArea(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
               Text(_status, style: Theme.of(context).textTheme.titleMedium),
               if (_error != null) _errorBox(_error!),
               if (_wornItemDetected) _wornWarning(),
@@ -540,9 +558,12 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
           ),
         ),
       ),
-    ),
-    ),
-  );
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _errorBox(String message) => Padding(
     padding: const EdgeInsets.only(top: 12),

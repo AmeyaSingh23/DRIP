@@ -417,47 +417,65 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => DefaultTabController(
-    length: 2,
-    child: Scaffold(
-      backgroundColor: Colors.transparent,
-      body: NestedScrollView(
-        physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-        headerSliverBuilder: (context, innerBoxIsScrolled) => [
-          SliverAppBar(
-            title: const Text('Archive'),
-            pinned: true,
-            floating: true,
-            backgroundColor: Colors.transparent,
-            flexibleSpace: ClipRRect(
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                child: Container(
-                  color: Theme.of(context).brightness == Brightness.dark
-                      ? Colors.black.withOpacity(0.2)
-                      : Colors.white.withOpacity(0.3),
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        backgroundColor: isDark ? const Color(0xFF2A1B22) : const Color(0xFFFFF5F7),
+        body: Stack(
+          children: [
+            Positioned.fill(
+              child: Opacity(
+                opacity: isDark ? 0.35 : 0.25,
+                child: Image.asset(
+                  isDark
+                      ? 'assets/images/dark_leopard_texture.png'
+                      : 'assets/images/leopard_texture.png',
+                  fit: BoxFit.cover,
                 ),
               ),
             ),
-            bottom: TabBar(
-              dividerColor: Colors.transparent,
-              indicatorColor: Theme.of(context).colorScheme.onSurface,
-              labelColor: Theme.of(context).colorScheme.onSurface,
-              unselectedLabelColor: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
-              labelStyle: const TextStyle(fontWeight: FontWeight.bold),
-              unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500),
-              tabs: const [Tab(text: 'Items'), Tab(text: 'Outfits')],
+            NestedScrollView(
+              physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+              headerSliverBuilder: (context, innerBoxIsScrolled) => [
+                SliverAppBar(
+                  title: const Text('Archive'),
+                  pinned: true,
+                  floating: true,
+                  backgroundColor: Colors.transparent,
+                  flexibleSpace: ClipRect(
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                      child: Container(
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? Colors.black.withOpacity(0.2)
+                            : Colors.white.withOpacity(0.3),
+                      ),
+                    ),
+                  ),
+                  bottom: TabBar(
+                    dividerColor: Colors.transparent,
+                    indicatorColor: Theme.of(context).colorScheme.onSurface,
+                    labelColor: Theme.of(context).colorScheme.onSurface,
+                    unselectedLabelColor: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                    labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+                    unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500),
+                    tabs: const [Tab(text: 'Items'), Tab(text: 'Outfits')],
+                  ),
+                ),
+              ],
+              body: _loading
+                  ? const Center(child: HangerLoadingIndicator())
+                  : _error != null
+                      ? Center(child: FilledButton(onPressed: _load, child: const Text('Try again')))
+                      : TabBarView(children: [_itemsTab(), _outfitsTab()]),
             ),
-          ),
-        ],
-        body: _loading
-            ? const Center(child: HangerLoadingIndicator())
-            : _error != null
-            ? Center(child: FilledButton(onPressed: _load, child: const Text('Try again')))
-            : TabBarView(children: [_itemsTab(), _outfitsTab()]),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 
   Widget _itemsTab() => CustomScrollView(
     physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),

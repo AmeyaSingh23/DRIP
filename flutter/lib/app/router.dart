@@ -31,35 +31,86 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/wardrobe/upload',
-        builder: (context, state) {
+        pageBuilder: (context, state) {
           final args = state.extra! as UploadRouteArgs;
-          return UploadScreen(email: args.email);
+          return CustomTransitionPage(
+            key: state.pageKey,
+            child: UploadScreen(email: args.email),
+            transitionDuration: const Duration(milliseconds: 200),
+            reverseTransitionDuration: const Duration(milliseconds: 200),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(1.0, 0.0),
+                  end: Offset.zero,
+                ).chain(CurveTween(curve: Curves.easeOutQuad)).animate(animation),
+                child: child,
+              );
+            },
+          );
         },
       ),
       GoRoute(
         path: '/outfits/generate',
-        builder:
-            (context, state) =>
-                OutfitGeneratorScreen(),
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: const OutfitGeneratorScreen(),
+          transitionDuration: const Duration(milliseconds: 200),
+          reverseTransitionDuration: const Duration(milliseconds: 200),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(1.0, 0.0),
+                end: Offset.zero,
+              ).chain(CurveTween(curve: Curves.easeOutQuad)).animate(animation),
+              child: child,
+            );
+          },
+        ),
       ),
       GoRoute(
         path: '/outfits',
-        builder:
-            (context, state) => OutfitsScreen(),
+        builder: (context, state) => const OutfitsScreen(),
       ),
       GoRoute(
         path: '/outfits/:outfitId',
-        builder:
-            (context, state) => OutfitDetailScreen(
-              outfitId: state.pathParameters['outfitId']!,
-            ),
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: OutfitDetailScreen(
+            outfitId: state.pathParameters['outfitId']!,
+          ),
+          transitionDuration: const Duration(milliseconds: 200),
+          reverseTransitionDuration: const Duration(milliseconds: 200),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(1.0, 0.0),
+                end: Offset.zero,
+              ).chain(CurveTween(curve: Curves.easeOutQuad)).animate(animation),
+              child: child,
+            );
+          },
+        ),
       ),
       GoRoute(
         path: '/wardrobe/items/:itemId',
-        builder:
-            (context, state) => ItemDetailScreen(
-              itemId: state.pathParameters['itemId']!,
-            ),
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: ItemDetailScreen(
+            itemId: state.pathParameters['itemId']!,
+          ),
+          transitionDuration: const Duration(milliseconds: 200),
+          reverseTransitionDuration: const Duration(milliseconds: 200),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(1.0, 0.0),
+                end: Offset.zero,
+              ).chain(CurveTween(curve: Curves.easeOutQuad)).animate(animation),
+              child: child,
+            );
+          },
+        ),
       ),
     ],
     errorBuilder:

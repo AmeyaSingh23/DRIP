@@ -10,6 +10,7 @@ import '../../../core/widgets/hanger_loading_indicator.dart';
 import '../../wardrobe/presentation/widgets/wardrobe_hanger_refresh.dart';
 import '../../wardrobe/domain/clothing_item_draft.dart';
 import '../../wardrobe/presentation/wardrobe_change_notifier.dart';
+import '../../wardrobe/presentation/providers/wardrobe_provider.dart';
 import '../data/creative_repository.dart';
 import '../../outfits/domain/outfit_item_layout.dart';
 import '../../profile/presentation/providers/profile_stats_provider.dart';
@@ -119,7 +120,9 @@ class _CreativeSpaceScreenState extends ConsumerState<CreativeSpaceScreen> {
     for (final item in initialItems) {
       if (!restoredIds.contains(item.id)) _autoPlace(item);
     }
-    _loadWardrobe();
+    Future.microtask(() {
+      if (mounted) _loadWardrobe();
+    });
   }
 
   @override
@@ -135,7 +138,11 @@ class _CreativeSpaceScreenState extends ConsumerState<CreativeSpaceScreen> {
       _error = null;
     });
     try {
-      final items = await _repository.loadWardrobe();
+      var items = ref.read(wardrobeItemsProvider).items;
+      if (items.isEmpty) {
+        await ref.read(wardrobeItemsProvider.notifier).load();
+        items = ref.read(wardrobeItemsProvider).items;
+      }
       if (!mounted || epoch != _loadEpoch) return;
       setState(() {
         _items = items;

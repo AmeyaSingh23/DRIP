@@ -75,7 +75,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     },
     child: Scaffold(
       extendBody: true,
-      body: IndexedStack(
+      body: SlidingIndexedStack(
         index: _index,
         children: [
           WardrobeScreen(email: widget.email, ),
@@ -130,6 +130,94 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 ),
     ),
   );
+}
+
+class SlidingIndexedStack extends StatefulWidget {
+  const SlidingIndexedStack({
+    super.key,
+    required this.index,
+    required this.children,
+    this.duration = const Duration(milliseconds: 120),
+  });
+
+  final int index;
+  final List<Widget> children;
+  final Duration duration;
+
+  @override
+  State<SlidingIndexedStack> createState() => _SlidingIndexedStackState();
+}
+
+class _SlidingIndexedStackState extends State<SlidingIndexedStack> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late int _prevIndex;
+  late int _currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _prevIndex = widget.index;
+    _currentIndex = widget.index;
+    _controller = AnimationController(
+      vsync: this,
+      duration: widget.duration,
+    );
+  }
+
+  @override
+  void didUpdateWidget(SlidingIndexedStack oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.index != _currentIndex) {
+      setState(() {
+        _prevIndex = _currentIndex;
+        _currentIndex = widget.index;
+      });
+      _controller.forward(from: 0.0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final progress = _controller.value;
+        final curveProgress = Curves.easeOutQuad.transform(progress);
+        
+        return Stack(
+          children: List.generate(widget.children.length, (i) {
+            final isCurrent = i == _currentIndex;
+            final isPrev = i == _prevIndex;
+            final isTransitioning = _controller.isAnimating && (isCurrent || isPrev);
+            final isVisible = isCurrent || isTransitioning;
+
+            double dx = 0.0;
+            if (isPrev && _prevIndex != _currentIndex) {
+              dx = _currentIndex > _prevIndex ? -curveProgress : curveProgress;
+            } else if (isCurrent && _prevIndex != _currentIndex) {
+              dx = _currentIndex > _prevIndex ? (1.0 - curveProgress) : -(1.0 - curveProgress);
+            }
+
+            return FractionalTranslation(
+              translation: Offset(dx, 0.0),
+              child: Offstage(
+                offstage: !isVisible,
+                child: RepaintBoundary(
+                  child: widget.children[i],
+                ),
+              ),
+            );
+          }),
+        );
+      },
+    );
+  }
 }
 
 

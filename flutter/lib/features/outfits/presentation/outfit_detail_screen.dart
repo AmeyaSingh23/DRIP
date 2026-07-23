@@ -182,6 +182,7 @@ class _OutfitDetailScreenState extends ConsumerState<OutfitDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final outfit = _outfit;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return PopScope(
       canPop: !_deleting,
       onPopInvokedWithResult: (didPop, _) {
@@ -192,12 +193,25 @@ class _OutfitDetailScreenState extends ConsumerState<OutfitDetailScreen> {
         }
       },
       child: Scaffold(
-        backgroundColor: Colors.transparent,
-        body: CustomScrollView(
-          physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-          slivers: [
-            SliverAppBar(
-              title: Text(outfit?.name ?? 'Outfit'),
+        backgroundColor: isDark ? const Color(0xFF2A1B22) : const Color(0xFFFFF5F7),
+        body: Stack(
+          children: [
+            Positioned.fill(
+              child: Opacity(
+                opacity: isDark ? 0.35 : 0.25,
+                child: Image.asset(
+                  isDark
+                      ? 'assets/images/dark_leopard_texture.png'
+                      : 'assets/images/leopard_texture.png',
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+            CustomScrollView(
+              physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+              slivers: [
+                SliverAppBar(
+                  title: Text(outfit?.name ?? 'Outfit'),
               automaticallyImplyLeading: !_deleting,
               floating: false,
               pinned: true,
@@ -393,8 +407,10 @@ class _OutfitDetailScreenState extends ConsumerState<OutfitDetailScreen> {
                     },
                     childCount: outfit.items.length + 1,
                   ),
+                  ),
                 ),
-              ),
+              ],
+            ),
           ],
         ),
       ),

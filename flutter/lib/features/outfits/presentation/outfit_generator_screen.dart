@@ -373,10 +373,22 @@ class _OutfitGeneratorScreenState extends ConsumerState<OutfitGeneratorScreen> {
         }
       },
       child: Scaffold(
-        extendBody: true,
-        backgroundColor: Colors.transparent,
-        body: CustomScrollView(
-          physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+          backgroundColor: isDark ? const Color(0xFF2A1B22) : const Color(0xFFFFF5F7),
+          body: Stack(
+            children: [
+              Positioned.fill(
+                child: Opacity(
+                  opacity: isDark ? 0.35 : 0.25,
+                  child: Image.asset(
+                    isDark
+                        ? 'assets/images/dark_leopard_texture.png'
+                        : 'assets/images/leopard_texture.png',
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+              CustomScrollView(
+                physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
           slivers: [
             SliverAppBar(
               title: const Text('Create an outfit'),
@@ -885,9 +897,11 @@ class _OutfitGeneratorScreenState extends ConsumerState<OutfitGeneratorScreen> {
             ),
           ],
         ),
-      ),
+      ],
     ),
-  );
+  ),
+),
+);
 }
 }
 

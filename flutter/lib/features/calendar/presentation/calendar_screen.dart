@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_client.dart';
@@ -8,14 +9,15 @@ import '../../../core/widgets/glass_date_picker_dialog.dart';
 import '../../../core/widgets/hanger_loading_indicator.dart';
 import '../../outfits/data/outfit_repository.dart';
 import '../../outfits/domain/saved_outfit.dart';
+import '../../outfits/presentation/providers/outfits_provider.dart';
 
-class CalendarScreen extends StatefulWidget {
+class CalendarScreen extends ConsumerStatefulWidget {
   const CalendarScreen({ super.key});
   @override
-  State<CalendarScreen> createState() => _CalendarScreenState();
+  ConsumerState<CalendarScreen> createState() => _CalendarScreenState();
 }
 
-class _CalendarScreenState extends State<CalendarScreen> {
+class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   final _client = ApiClient();
   final _outfits = OutfitRepository(ApiClient());
   DateTime _date = DateUtils.dateOnly(DateTime.now());
@@ -93,7 +95,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final entryDate = _date;
     setState(() => _actionInProgress = true);
     try {
-      final outfits = await _outfits.list();
+      var outfits = ref.read(outfitsProvider).outfits;
+      if (outfits.isEmpty) {
+        await ref.read(outfitsProvider.notifier).load();
+        outfits = ref.read(outfitsProvider).outfits;
+      }
       if (!mounted) return;
       final result = await showDialog<_ScheduleValues>(
         context: context,
