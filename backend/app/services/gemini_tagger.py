@@ -312,13 +312,13 @@ class GeminiTagger:
                     raise HTTPException(
                         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                         detail="Auto-tagging could not process this image. Try a different photo or add details manually.",
-                    ) from error
+                    )
 
                 if classification == "config_error":
                     raise HTTPException(
                         status_code=status.HTTP_502_BAD_GATEWAY,
                         detail="Auto-tagging is temporarily unavailable.",
-                    ) from error
+                    )
 
                 if classification == "daily_exhausted":
                     _key_pool.mark_daily_exhausted(key_index)

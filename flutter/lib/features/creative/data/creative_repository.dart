@@ -15,11 +15,11 @@ final class CreativeRepository {
   final WardrobeRepository _wardrobe;
   final OutfitRepository _outfits;
 
-  Future<List<ClothingItemDraft>> loadWardrobe({required String token}) =>
-      _wardrobe.list(token: token);
+  Future<List<ClothingItemDraft>> loadWardrobe() =>
+      _wardrobe.list();
 
   Future<void> saveOutfit({
-    required String token,
+    
     required List<ClothingItemDraft> items,
     required String name,
     required List<OutfitItemLayout> itemLayout,
@@ -41,7 +41,7 @@ final class CreativeRepository {
     );
     if (outfitId != null) {
       return _outfits.update(
-        token: token,
+        
         outfitId: outfitId,
         name: name,
         occasion: occasion,
@@ -50,10 +50,12 @@ final class CreativeRepository {
       );
     }
     return _outfits.save(
-      token: token,
+      
       idempotencyKey: idempotencyKey,
       preview: preview,
       itemLayout: itemLayout,
     );
   }
 }
+
+

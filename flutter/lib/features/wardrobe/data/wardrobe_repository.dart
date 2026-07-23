@@ -16,7 +16,7 @@ final class WardrobeRepository {
 
   Future<Uint8List> removeBackground({
     required File image,
-    required String token,
+    
   }) async {
     final form = FormData.fromMap({
       'image': await MultipartFile.fromFile(
@@ -29,7 +29,7 @@ final class WardrobeRepository {
       '/api/v1/items/cutout',
       data: form,
       options: Options(
-        headers: {'Authorization': 'Bearer $token'},
+        
         responseType: ResponseType.bytes,
         sendTimeout: const Duration(seconds: 30),
         receiveTimeout: const Duration(seconds: 90),
@@ -44,7 +44,7 @@ final class WardrobeRepository {
 
   Future<ClothingTagResult> tag({
     required File taggingImage,
-    required String token,
+    
   }) async {
     final form = FormData.fromMap({
       'tagging_image': await MultipartFile.fromFile(
@@ -57,7 +57,7 @@ final class WardrobeRepository {
       '/api/v1/items/tag',
       data: form,
       options: Options(
-        headers: {'Authorization': 'Bearer $token'},
+        
         sendTimeout: const Duration(seconds: 30),
         receiveTimeout: const Duration(seconds: 90),
       ),
@@ -67,7 +67,7 @@ final class WardrobeRepository {
 
   Future<ClothingItemDraft> manualUpload({
     required File cutout,
-    required String token,
+    
     required String itemName,
     required String category,
     required String color,
@@ -90,7 +90,6 @@ final class WardrobeRepository {
       data: form,
       options: Options(
         headers: {
-          'Authorization': 'Bearer $token',
           'Idempotency-Key': idempotencyKey,
         },
         sendTimeout: const Duration(seconds: 30),
@@ -102,7 +101,7 @@ final class WardrobeRepository {
 
   Future<ClothingItemDraft> update({
     required ClothingItemDraft draft,
-    required String token,
+    
     String? itemName,
     String? category,
     String? customCategory,
@@ -116,13 +115,13 @@ final class WardrobeRepository {
         'custom_category': customCategory,
         'color': color,
       },
-      options: Options(headers: {'Authorization': 'Bearer $token'}),
+      
     );
     return ClothingItemDraft.fromJson(response.data!);
   }
 
   Future<List<ClothingItemDraft>> list({
-    required String token,
+    
     String? category,
     String? search,
     bool archived = false,
@@ -134,7 +133,7 @@ final class WardrobeRepository {
         if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
         if (archived) 'archived': true,
       },
-      options: Options(headers: {'Authorization': 'Bearer $token'}),
+      
     );
     return (response.data ?? const [])
         .whereType<Map<String, dynamic>>()
@@ -144,48 +143,50 @@ final class WardrobeRepository {
 
   Future<ClothingItemDraft> get({
     required String itemId,
-    required String token,
+    
   }) async {
     final response = await _client.dio.get<Map<String, dynamic>>(
       '/api/v1/items/$itemId',
-      options: Options(headers: {'Authorization': 'Bearer $token'}),
+      
     );
     return ClothingItemDraft.fromJson(response.data!);
   }
 
   Future<ClothingItemUsage> usage({
     required String itemId,
-    required String token,
+    
   }) async {
     final response = await _client.dio.get<Map<String, dynamic>>(
       '/api/v1/items/$itemId/usage',
-      options: Options(headers: {'Authorization': 'Bearer $token'}),
+      
     );
     return ClothingItemUsage.fromJson(response.data!);
   }
 
-  Future<void> archive({required String itemId, required String token}) =>
+  Future<void> archive({required String itemId, }) =>
       _client.dio.delete<void>(
         '/api/v1/items/$itemId',
-        options: Options(headers: {'Authorization': 'Bearer $token'}),
+        
       );
 
   Future<void> permanentlyErase({
     required String itemId,
-    required String token,
+    
   }) => _client.dio.delete<void>(
     '/api/v1/items/$itemId/permanent',
-    options: Options(headers: {'Authorization': 'Bearer $token'}),
+    
   );
 
   Future<ClothingItemDraft> restore({
     required String itemId,
-    required String token,
+    
   }) async {
     final response = await _client.dio.post<Map<String, dynamic>>(
       '/api/v1/items/$itemId/restore',
-      options: Options(headers: {'Authorization': 'Bearer $token'}),
+      
     );
     return ClothingItemDraft.fromJson(response.data!);
   }
 }
+
+

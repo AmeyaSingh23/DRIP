@@ -86,3 +86,5 @@ final class WeatherContextResult {
   final String status;
   final OutfitWeatherContext? weatherContext;
 }
+
+

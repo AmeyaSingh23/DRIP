@@ -10,8 +10,7 @@ import '../../outfits/data/outfit_repository.dart';
 import '../../outfits/domain/saved_outfit.dart';
 
 class CalendarScreen extends StatefulWidget {
-  const CalendarScreen({required this.token, super.key});
-  final String token;
+  const CalendarScreen({ super.key});
   @override
   State<CalendarScreen> createState() => _CalendarScreenState();
 }
@@ -54,7 +53,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
           'start': requestedDate.toIso8601String().substring(0, 10),
           'end': requestedDate.toIso8601String().substring(0, 10),
         },
-        options: Options(headers: {'Authorization': 'Bearer ${widget.token}'}),
       );
       if (mounted && requestEpoch == _loadEpoch && _date == requestedDate) {
         setState(
@@ -95,7 +93,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final entryDate = _date;
     setState(() => _actionInProgress = true);
     try {
-      final outfits = await _outfits.list(token: widget.token);
+      final outfits = await _outfits.list();
       if (!mounted) return;
       final result = await showDialog<_ScheduleValues>(
         context: context,
@@ -115,7 +113,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
           'outfit_id': result.outfit.id,
           if (result.notes.isNotEmpty) 'notes': result.notes,
         },
-        options: Options(headers: {'Authorization': 'Bearer ${widget.token}'}),
       );
       if (mounted && _date == entryDate) await _load();
     } on DioException catch (error) {
@@ -194,7 +191,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
     try {
       await _client.dio.delete(
         '/api/v1/calendar/${entry['id']}',
-        options: Options(headers: {'Authorization': 'Bearer ${widget.token}'}),
       );
       await _load();
     } on DioException catch (error) {
@@ -398,7 +394,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         ? null
                         : () => context.push(
                               '/outfits/${entry!['outfit_id']}',
-                              extra: widget.token,
+                              
                             ),
                     child: Row(
                       children: [
@@ -641,3 +637,5 @@ class _ScheduleDialogState extends State<_ScheduleDialog> {
     );
   }
 }
+
+

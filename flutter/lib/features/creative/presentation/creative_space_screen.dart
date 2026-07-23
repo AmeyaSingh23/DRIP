@@ -15,7 +15,7 @@ import '../../outfits/domain/outfit_item_layout.dart';
 
 final class CreativeRouteArgs {
   const CreativeRouteArgs({
-    required this.token,
+    
     this.initialItems,
     this.initialName,
     this.initialOccasion,
@@ -23,8 +23,6 @@ final class CreativeRouteArgs {
     this.editingOutfitId,
     this.startCollapsed,
   });
-
-  final String token;
   final List<ClothingItemDraft>? initialItems;
   final String? initialName;
   final String? initialOccasion;
@@ -37,7 +35,7 @@ enum _CanvasZone { accessories, shoes, bottoms, tops, outerwear }
 
 class CreativeSpaceScreen extends ConsumerStatefulWidget {
   const CreativeSpaceScreen({
-    required this.token,
+    
     this.initialItems,
     this.initialName,
     this.initialOccasion,
@@ -46,8 +44,6 @@ class CreativeSpaceScreen extends ConsumerStatefulWidget {
     this.startCollapsed,
     super.key,
   });
-
-  final String token;
   final List<ClothingItemDraft>? initialItems;
   final String? initialName;
   final String? initialOccasion;
@@ -138,7 +134,7 @@ class _CreativeSpaceScreenState extends ConsumerState<CreativeSpaceScreen> {
       _error = null;
     });
     try {
-      final items = await _repository.loadWardrobe(token: widget.token);
+      final items = await _repository.loadWardrobe();
       if (!mounted || epoch != _loadEpoch) return;
       setState(() {
         _items = items;
@@ -456,7 +452,7 @@ class _CreativeSpaceScreenState extends ConsumerState<CreativeSpaceScreen> {
     });
     try {
       await _repository.saveOutfit(
-        token: widget.token,
+        
         items: items,
         name: _outfitName,
         itemLayout: _itemLayout,
@@ -1190,3 +1186,5 @@ class _OutfitDetailsDialogState extends State<_OutfitDetailsDialog> {
     );
   }
 }
+
+

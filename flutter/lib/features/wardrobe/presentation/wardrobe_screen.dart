@@ -16,11 +16,9 @@ import 'widgets/wardrobe_filter_tabs.dart';
 import 'widgets/wardrobe_hanger_refresh.dart';
 
 class WardrobeScreen extends ConsumerStatefulWidget {
-  const WardrobeScreen({required this.email, required this.token, super.key});
+  const WardrobeScreen({required this.email,  super.key});
 
   final String email;
-  final String token;
-
   @override
   ConsumerState<WardrobeScreen> createState() => _WardrobeScreenState();
 }
@@ -67,7 +65,7 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
       _error = null;
     });
     try {
-      final items = await _repository.list(token: widget.token);
+      final items = await _repository.list();
       if (mounted && requestEpoch == _loadEpoch) {
         setState(() {
           _items = items;
@@ -204,7 +202,7 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
     if (confirmed != true) return;
     setState(() => _deleting = true);
     try {
-      await _repository.archive(itemId: item.id, token: widget.token);
+      await _repository.archive(itemId: item.id, );
       ref.read(wardrobeRevisionProvider.notifier).notifyChanged();
       await _load();
     } on DioException catch (error) {
@@ -369,7 +367,7 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
                         await context.push(
                           '/wardrobe/upload',
                           extra: UploadRouteArgs(
-                            token: widget.token,
+                            
                             email: widget.email,
                           ),
                         );
@@ -444,7 +442,7 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
                         _searchFocusNode.unfocus();
                         final changed = await context.push<bool>(
                           '/wardrobe/items/${item.id}',
-                          extra: widget.token,
+                          
                         );
                         if (changed == true) await _load();
                       },
@@ -528,3 +526,5 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
     );
   }
 }
+
+

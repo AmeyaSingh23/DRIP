@@ -14,7 +14,8 @@ async def reconcile_cloudinary(
     session: AsyncSession = Depends(get_db_session),
 ) -> dict[str, int]:
     secret = get_settings().cron_secret
-    if not secret or authorization != f"Bearer {secret}":
+    import hmac
+    if not secret or not authorization or not hmac.compare_digest(authorization, f"Bearer {secret}"):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
     completed = await reconcile_cloudinary_deletions(session)
     return {"completed": completed}

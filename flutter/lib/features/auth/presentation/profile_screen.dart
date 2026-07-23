@@ -11,10 +11,8 @@ import '../../wardrobe/presentation/wardrobe_change_notifier.dart';
 import 'auth_controller.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
-  const ProfileScreen({required this.email, required this.token, super.key});
+  const ProfileScreen({required this.email,  super.key});
   final String email;
-  final String token;
-
   @override
   ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
 }
@@ -38,8 +36,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   Future<void> _fetchStats() async {
     try {
-      final items = await _wardrobeRepo.list(token: widget.token);
-      final outfits = await _outfitRepo.list(token: widget.token);
+      final items = await _wardrobeRepo.list();
+      final outfits = await _outfitRepo.list();
       if (mounted) {
         setState(() {
           _itemsCount = items.length;
@@ -378,7 +376,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   icon: Icons.inventory_2_outlined,
                   title: 'Archive',
                   subtitle: 'View archived items and outfits',
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ArchiveScreen(token: widget.token))),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ArchiveScreen())),
                 ),
                 _buildGlassTile(
                   icon: Icons.logout,
@@ -394,3 +392,5 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 }
+
+

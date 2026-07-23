@@ -319,3 +319,5 @@ class _WardrobeItemEditorDialogState extends State<WardrobeItemEditorDialog> {
     );
   }
 }
+
+

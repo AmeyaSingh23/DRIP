@@ -12,10 +12,7 @@ import '../data/outfit_repository.dart';
 import '../domain/saved_outfit.dart';
 
 class OutfitsScreen extends StatefulWidget {
-  const OutfitsScreen({required this.token, super.key});
-
-  final String token;
-
+  const OutfitsScreen({ super.key});
   @override
   State<OutfitsScreen> createState() => _OutfitsScreenState();
 }
@@ -42,7 +39,7 @@ class _OutfitsScreenState extends State<OutfitsScreen> {
       _error = null;
     });
     try {
-      final outfits = await _repository.list(token: widget.token);
+      final outfits = await _repository.list();
       if (mounted && requestEpoch == _loadEpoch) {
         setState(() => _outfits = outfits);
       }
@@ -114,7 +111,7 @@ class _OutfitsScreenState extends State<OutfitsScreen> {
     if (confirmed != true || !mounted) return;
     setState(() => _deletingId = outfit.id);
     try {
-      await _repository.archive(token: widget.token, outfitId: outfit.id);
+      await _repository.archive( outfitId: outfit.id);
       await _load();
     } on DioException catch (error) {
       if (mounted) {
@@ -234,7 +231,7 @@ class _OutfitsScreenState extends State<OutfitsScreen> {
           actions: [
             IconButton(
               onPressed: () async {
-                await context.push('/outfits/generate', extra: widget.token);
+                await context.push('/outfits/generate', );
                 if (mounted) await _load();
               },
               tooltip: 'Create an outfit',
@@ -262,7 +259,7 @@ class _OutfitsScreenState extends State<OutfitsScreen> {
             subtitle: 'Let our AI Stylist create a perfect outfit for you.',
             actionButton: FilledButton.icon(
               onPressed: () async {
-                await context.push('/outfits/generate', extra: widget.token);
+                await context.push('/outfits/generate', );
                 if (mounted) await _load();
               },
               style: FilledButton.styleFrom(
@@ -305,7 +302,7 @@ class _OutfitsScreenState extends State<OutfitsScreen> {
                             onTap: () async {
                               await context.push<bool>(
                                 '/outfits/${outfit.id}',
-                                extra: widget.token,
+                                
                               );
                               if (mounted) await _load();
                             },
@@ -401,3 +398,5 @@ class _OutfitsScreenState extends State<OutfitsScreen> {
     ),
   );
 }
+
+

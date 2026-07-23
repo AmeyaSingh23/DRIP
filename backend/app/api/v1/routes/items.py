@@ -105,16 +105,17 @@ async def list_items(
     if category and category != "All":
         statement = statement.where(ClothingItem.category == category)
     if search and (term := search.strip()):
+        term = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         pattern = f"%{term}%"
         statement = statement.where(
             or_(
-                ClothingItem.item_name.ilike(pattern),
-                ClothingItem.category.ilike(pattern),
-                ClothingItem.custom_category.ilike(pattern),
-                ClothingItem.color.ilike(pattern),
-                ClothingItem.pattern.ilike(pattern),
-                ClothingItem.fabric.ilike(pattern),
-                cast(ClothingItem.tags, String).ilike(pattern),
+                ClothingItem.item_name.ilike(pattern, escape="\\"),
+                ClothingItem.category.ilike(pattern, escape="\\"),
+                ClothingItem.custom_category.ilike(pattern, escape="\\"),
+                ClothingItem.color.ilike(pattern, escape="\\"),
+                ClothingItem.pattern.ilike(pattern, escape="\\"),
+                ClothingItem.fabric.ilike(pattern, escape="\\"),
+                cast(ClothingItem.tags, String).ilike(pattern, escape="\\"),
             )
         )
     items = (await session.scalars(statement.order_by(ClothingItem.created_at.desc()))).all()
@@ -268,8 +269,16 @@ async def update_item(
     session: AsyncSession = Depends(get_db_session),
 ) -> ClothingItemUploadResponse:
     item = await _active_item_or_404(item_id, current_user.id, session)
-    for field, value in payload.model_dump(exclude_unset=True).items():
-        setattr(item, field, value)
+    update_data = payload.model_dump(exclude_unset=True)
+    # Prevent assigning to system fields
+    for sys_field in ["id", "user_id", "created_at"]:
+        update_data.pop(sys_field, None)
+    
+    # Only assign fields explicitly defined in the input schema
+    allowed_fields = ClothingItemUpdate.model_fields.keys()
+    for field, value in update_data.items():
+        if field in allowed_fields and hasattr(item, field):
+            setattr(item, field, value)
     item.is_uniform = item.category == "Uniform"
     item.user_verified = True
     item.user_verified_at = datetime.now(timezone.utc)
@@ -343,9 +352,13 @@ async def retrim_all_items(
     items = (await session.scalars(statement)).all()
     trimmed_count = 0
 
+    from urllib.parse import urlparse
     async with httpx.AsyncClient(timeout=30.0) as client:
         for item in items:
             try:
+                parsed_url = urlparse(item.cloudinary_url)
+                if parsed_url.scheme != "https" or parsed_url.netloc != "res.cloudinary.com":
+                    continue
                 resp = await client.get(item.cloudinary_url)
                 if resp.status_code == 200 and resp.content:
                     trimmed_bytes = trim_transparent_padding(resp.content)

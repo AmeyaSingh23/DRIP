@@ -42,10 +42,9 @@ final class AuthRepository {
     return _persistSession(response.data!);
   }
 
-  Future<MaisonUser> me(String token) async {
+  Future<MaisonUser> me() async {
     final response = await _client.dio.get<Map<String, dynamic>>(
       '/api/v1/auth/me',
-      options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
     return MaisonUser.fromJson(response.data!);
   }
@@ -55,7 +54,6 @@ final class AuthRepository {
       if (accessToken != null && accessToken.isNotEmpty) {
         await _client.dio.post<void>(
           '/api/v1/auth/logout',
-          options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
         );
       }
     } on DioException {
@@ -74,3 +72,5 @@ final class AuthRepository {
     return session;
   }
 }
+
+

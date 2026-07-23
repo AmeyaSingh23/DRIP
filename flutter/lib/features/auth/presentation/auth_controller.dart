@@ -28,7 +28,7 @@ final class AuthController extends AsyncNotifier<AuthSession?> {
     final token = await _repository.savedAccessToken();
     if (token == null) return null;
     try {
-      final user = await _repository.me(token);
+      final user = await _repository.me();
       return AuthSession(accessToken: token, user: user);
     } on DioException {
       await _repository.logout();
@@ -54,7 +54,7 @@ final class AuthController extends AsyncNotifier<AuthSession?> {
       _ => null,
     };
     state = const AsyncLoading();
-    await _repository.logout(accessToken: token);
+    await _repository.logout();
     state = const AsyncData(null);
   }
 
@@ -65,7 +65,7 @@ final class AuthController extends AsyncNotifier<AuthSession?> {
     };
     if (session == null) return;
     try {
-      await _repository.me(session.accessToken);
+      await _repository.me();
     } on DioException catch (error) {
       if (error.response?.statusCode != 401) return;
       await _repository.logout();
@@ -87,3 +87,5 @@ final class AuthController extends AsyncNotifier<AuthSession?> {
     return 'Could not reach La Maison de Miniso. Check the API URL and your connection.';
   }
 }
+
+

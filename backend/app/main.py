@@ -4,8 +4,20 @@ from fastapi.middleware.cors import CORSMiddleware  # type: ignore
 from app.api.v1.router import api_router
 from app.core.config import get_settings
 
+from slowapi import _rate_limit_exceeded_handler # type: ignore
+from slowapi.errors import RateLimitExceeded # type: ignore
+from app.core.rate_limit import limiter
+
 settings = get_settings()
-app = FastAPI(title=settings.app_name, version="0.1.0")
+app = FastAPI(
+    title=settings.app_name, 
+    version="0.1.0",
+    docs_url="/docs" if settings.app_env == "development" else None,
+    redoc_url="/redoc" if settings.app_env == "development" else None,
+    openapi_url="/openapi.json" if settings.app_env == "development" else None,
+)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 if settings.cors_origins:
     app.add_middleware(

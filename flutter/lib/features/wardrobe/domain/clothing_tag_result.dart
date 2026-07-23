@@ -34,3 +34,5 @@ final class ClothingTagResult {
   final String? itemName;
   final List<String> tags;
 }
+
+

@@ -45,3 +45,5 @@ class OutfitPreview {
   final bool isQuickPick;
   final int? retryAfterSeconds;
 }
+
+

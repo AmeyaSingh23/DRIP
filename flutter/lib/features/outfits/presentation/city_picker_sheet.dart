@@ -9,9 +9,7 @@ import '../domain/outfit_weather.dart';
 import '../../../core/widgets/hanger_loading_indicator.dart';
 
 class CityPickerSheet extends StatefulWidget {
-  const CityPickerSheet({required this.token, required this.repository, super.key});
-
-  final String token;
+  const CityPickerSheet({ required this.repository, super.key});
   final OutfitRepository repository;
 
   @override
@@ -58,7 +56,7 @@ class _CityPickerSheetState extends State<CityPickerSheet> {
     _cancelToken = cancelToken;
     try {
       final results = await widget.repository.searchLocations(
-        token: widget.token,
+        
         query: query,
         cancelToken: cancelToken,
       );
@@ -153,3 +151,5 @@ class _CityPickerSheetState extends State<CityPickerSheet> {
     ),
   );
 }
+
+

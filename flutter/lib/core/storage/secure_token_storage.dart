@@ -3,7 +3,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 final class SecureTokenStorage {
   static const _accessTokenKey = 'la_maison_de_miniso_access_token';
   final FlutterSecureStorage _storage = const FlutterSecureStorage(
-    aOptions: AndroidOptions(),
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
   );
 
   Future<String?> readAccessToken() => _storage.read(key: _accessTokenKey);

@@ -19,14 +19,12 @@ import 'wardrobe_change_notifier.dart';
 import '../../../core/widgets/hanger_loading_indicator.dart';
 
 final class UploadRouteArgs {
-  const UploadRouteArgs({required this.token, required this.email});
-  final String token;
+  const UploadRouteArgs({ required this.email});
   final String email;
 }
 
 class UploadScreen extends ConsumerStatefulWidget {
-  const UploadScreen({required this.token, required this.email, super.key});
-  final String token;
+  const UploadScreen({ required this.email, super.key});
   final String email;
   @override
   ConsumerState<UploadScreen> createState() => _UploadScreenState();
@@ -142,7 +140,7 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
       await rawCutout.writeAsBytes(
         await _repository.removeBackground(
           image: cutoutSource,
-          token: widget.token,
+          
         ),
         flush: true,
       );
@@ -162,7 +160,7 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
       taggingImage = null;
       final tags = await _repository.tag(
         taggingImage: _taggingImage!,
-        token: widget.token,
+        
       );
       await _clearTaggingImage();
       if (tags.isWornOnPerson) {
@@ -282,7 +280,7 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
     try {
       final tags = await _repository.tag(
         taggingImage: taggingImage,
-        token: widget.token,
+        
       );
       await _clearTaggingImage();
       if (tags.isWornOnPerson) {
@@ -348,7 +346,7 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
     try {
       await _repository.manualUpload(
         cutout: cutout,
-        token: widget.token,
+        
         itemName: _name.text.trim(),
         category: _category,
         color: _color.text.trim(),
@@ -436,6 +434,11 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
   Future<void> _deleteTemporaryFile(File file) async {
     try {
       if (await file.exists()) {
+        final length = await file.length();
+        if (length > 0) {
+          final zeros = List<int>.filled(length, 0);
+          await file.writeAsBytes(zeros, flush: true);
+        }
         await file.delete();
       }
     } on FileSystemException {
@@ -451,10 +454,11 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
         'No clothing item was detected',
       );
   String _messageFor(Object error) {
-    if (error is DioException &&
-        error.response?.data is Map &&
-        (error.response!.data as Map)['detail'] is String) {
-      return (error.response!.data as Map)['detail'] as String;
+    if (error is DioException && error.response?.statusCode != 500) {
+      final detail = error.response?.data is Map ? (error.response!.data as Map)['detail'] : null;
+      if (detail is String && detail.startsWith('No clothing item')) {
+        return detail;
+      }
     }
     if (error is StateError) {
       return error.message.toString();
@@ -822,3 +826,5 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
     ],
   );
 }
+
+

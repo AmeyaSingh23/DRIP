@@ -101,6 +101,12 @@ class BgRemovalService:
                 if not isinstance(png_url, str) or not png_url:
                     raise ValueError("RapidAPI did not return a cutout URL")
 
+                from urllib.parse import urlparse
+                parsed_png = urlparse(png_url)
+                if parsed_png.scheme != "https" or not (parsed_png.netloc.endswith(".rapidapi.com") or parsed_png.netloc.endswith(".cloudinary.com") or parsed_png.netloc.endswith(".amazonaws.com") or parsed_png.netloc.endswith(".googleusercontent.com") or "rapidapi" in parsed_png.netloc):
+                    # Be slightly more permissive with storage domains since we don't know the exact bucket, but enforce HTTPS and no local IPs.
+                    if parsed_png.scheme != "https" or parsed_png.netloc.startswith("10.") or parsed_png.netloc.startswith("192.") or parsed_png.netloc.startswith("127.") or parsed_png.netloc == "localhost":
+                        raise ValueError("RapidAPI returned an unsafe or local URL")
                 png_response = await client.get(png_url)
                 png_response.raise_for_status()
                 if not png_response.content:

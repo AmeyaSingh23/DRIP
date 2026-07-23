@@ -20,7 +20,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final args = state.extra! as CreativeRouteArgs;
           return CreativeSpaceScreen(
-            token: args.token,
             initialItems: args.initialItems,
             initialName: args.initialName,
             initialOccasion: args.initialOccasion,
@@ -34,26 +33,25 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/wardrobe/upload',
         builder: (context, state) {
           final args = state.extra! as UploadRouteArgs;
-          return UploadScreen(token: args.token, email: args.email);
+          return UploadScreen(email: args.email);
         },
       ),
       GoRoute(
         path: '/outfits/generate',
         builder:
             (context, state) =>
-                OutfitGeneratorScreen(token: state.extra! as String),
+                OutfitGeneratorScreen(),
       ),
       GoRoute(
         path: '/outfits',
         builder:
-            (context, state) => OutfitsScreen(token: state.extra! as String),
+            (context, state) => OutfitsScreen(),
       ),
       GoRoute(
         path: '/outfits/:outfitId',
         builder:
             (context, state) => OutfitDetailScreen(
               outfitId: state.pathParameters['outfitId']!,
-              token: state.extra! as String,
             ),
       ),
       GoRoute(
@@ -61,12 +59,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder:
             (context, state) => ItemDetailScreen(
               itemId: state.pathParameters['itemId']!,
-              token: state.extra! as String,
             ),
       ),
     ],
     errorBuilder:
         (context, state) =>
-            Scaffold(body: Center(child: Text('Page not found: ${state.uri}'))),
+            const Scaffold(body: Center(child: Text('Page not found'))),
   );
 });

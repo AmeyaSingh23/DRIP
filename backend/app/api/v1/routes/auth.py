@@ -1,11 +1,11 @@
 import asyncio
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from google.auth.transport import requests as google_requests
-from google.oauth2 import id_token as google_id_token
-from sqlalchemy import select, update
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Depends, HTTPException, status # type: ignore
+from google.auth.transport import requests as google_requests # type: ignore
+from google.oauth2 import id_token as google_id_token # type: ignore
+from sqlalchemy import select, update # type: ignore
+from sqlalchemy.exc import IntegrityError # type: ignore
+from sqlalchemy.ext.asyncio import AsyncSession # type: ignore
 
 from app.api.deps import get_current_user, get_db_session
 from app.core.config import get_settings
@@ -15,9 +15,12 @@ from app.schemas.auth import GoogleAuthRequest, TokenResponse, UserResponse
 
 router = APIRouter()
 
+from app.core.rate_limit import limiter
+from fastapi import Request # type: ignore
 
 @router.post("/google", response_model=TokenResponse)
-async def google_login(payload: GoogleAuthRequest, session: AsyncSession = Depends(get_db_session)) -> TokenResponse:
+@limiter.limit("5/minute")
+async def google_login(request: Request, payload: GoogleAuthRequest, session: AsyncSession = Depends(get_db_session)) -> TokenResponse:
     settings = get_settings()
     if not settings.google_oauth_web_client_id:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Google sign-in is not configured")

@@ -20,7 +20,7 @@ class AuthGate extends ConsumerWidget {
                   ? const GoogleSignInScreen()
                   : HomeScreen(
                     email: session.user.email,
-                    token: session.accessToken,
+                    
                   ),
     );
   }
@@ -178,4 +178,6 @@ class _AuthRestoreScreenState extends State<_AuthRestoreScreen>
     );
   }
 }
+
+
 

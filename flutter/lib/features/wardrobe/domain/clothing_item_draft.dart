@@ -77,3 +77,5 @@ class ClothingItemDraft {
     'archived_at': archivedAt?.toIso8601String(),
   };
 }
+
+

@@ -42,3 +42,5 @@ class SavedOutfit {
   final List<OutfitItemLayout> itemLayout;
   final List<ClothingItemDraft> items;
 }
+
+

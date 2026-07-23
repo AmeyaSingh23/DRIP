@@ -12,10 +12,9 @@ import 'profile_screen.dart';
 import 'auth_controller.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
-  const HomeScreen({required this.email, required this.token, super.key});
+  const HomeScreen({required this.email,  super.key});
 
   final String email;
-  final String token;
   @override
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
@@ -71,11 +70,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       body: IndexedStack(
         index: _index,
         children: [
-          WardrobeScreen(email: widget.email, token: widget.token),
-          OutfitsScreen(token: widget.token),
-          CreativeSpaceScreen(token: widget.token),
-          CalendarScreen(token: widget.token),
-          ProfileScreen(email: widget.email, token: widget.token),
+          WardrobeScreen(email: widget.email, ),
+          OutfitsScreen(),
+          CreativeSpaceScreen(),
+          CalendarScreen(),
+          ProfileScreen(email: widget.email, ),
         ],
       ),
       bottomNavigationBar: ClipRRect(
@@ -124,3 +123,5 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     ),
   );
 }
+
+

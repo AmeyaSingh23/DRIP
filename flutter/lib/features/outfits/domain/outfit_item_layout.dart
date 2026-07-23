@@ -30,3 +30,5 @@ final class OutfitItemLayout {
     'scale': scale,
   };
 }
+
+

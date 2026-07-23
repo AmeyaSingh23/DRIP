@@ -16,13 +16,11 @@ import '../domain/saved_outfit.dart';
 class OutfitDetailScreen extends ConsumerStatefulWidget {
   const OutfitDetailScreen({
     required this.outfitId,
-    required this.token,
+    
     super.key,
   });
 
   final String outfitId;
-  final String token;
-
   @override
   ConsumerState<OutfitDetailScreen> createState() => _OutfitDetailScreenState();
 }
@@ -42,7 +40,7 @@ class _OutfitDetailScreenState extends ConsumerState<OutfitDetailScreen> {
   Future<void> _load() async {
     try {
       final outfit = await _repository.get(
-        token: widget.token,
+        
         outfitId: widget.outfitId,
       );
       if (mounted) setState(() => _outfit = outfit);
@@ -110,7 +108,7 @@ class _OutfitDetailScreenState extends ConsumerState<OutfitDetailScreen> {
     if (confirmed != true) return;
     setState(() => _deleting = true);
     try {
-      await _repository.archive(token: widget.token, outfitId: widget.outfitId);
+      await _repository.archive( outfitId: widget.outfitId);
       ref.read(outfitRevisionProvider.notifier).notifyChanged();
       if (mounted) context.pop(true);
     } on DioException catch (_) {
@@ -141,7 +139,7 @@ class _OutfitDetailScreenState extends ConsumerState<OutfitDetailScreen> {
     setState(() => _deleting = true);
     try {
       final updated = await _repository.update(
-        token: widget.token,
+        
         outfitId: outfit.id,
         name: details.name,
         occasion: details.occasion,
@@ -162,7 +160,7 @@ class _OutfitDetailScreenState extends ConsumerState<OutfitDetailScreen> {
     if (_deleting || _outfit == null) return;
     setState(() => _deleting = true);
     try {
-      await _repository.restore(token: widget.token, outfitId: widget.outfitId);
+      await _repository.restore( outfitId: widget.outfitId);
       ref.read(outfitRevisionProvider.notifier).notifyChanged();
       await _load();
       if (mounted) {
@@ -246,7 +244,7 @@ class _OutfitDetailScreenState extends ConsumerState<OutfitDetailScreen> {
                                 await context.push(
                                   '/creative',
                                   extra: CreativeRouteArgs(
-                                    token: widget.token,
+                                    
                                     initialItems: outfit.items,
                                     initialName: outfit.name,
                                     initialOccasion: outfit.occasion,
@@ -350,7 +348,7 @@ class _OutfitDetailScreenState extends ConsumerState<OutfitDetailScreen> {
                                 onTap:
                                     () => context.push(
                                       '/wardrobe/items/${item.id}',
-                                      extra: widget.token,
+                                      
                                     ),
                                 leading: SizedBox(
                                   width: 56,
@@ -561,3 +559,5 @@ class _OutfitDetailsDialogState extends State<_OutfitDetailsDialog> {
     ),
   );
 }
+
+

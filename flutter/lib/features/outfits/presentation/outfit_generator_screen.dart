@@ -23,10 +23,7 @@ import 'city_picker_sheet.dart';
 enum _WeatherState { idle, loading, available, unavailable }
 
 class OutfitGeneratorScreen extends ConsumerStatefulWidget {
-  const OutfitGeneratorScreen({required this.token, super.key});
-
-  final String token;
-
+  const OutfitGeneratorScreen({ super.key});
   @override
   ConsumerState<OutfitGeneratorScreen> createState() => _OutfitGeneratorScreenState();
 }
@@ -173,7 +170,7 @@ class _OutfitGeneratorScreenState extends ConsumerState<OutfitGeneratorScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder:
-          (_) => CityPickerSheet(token: widget.token, repository: _repository),
+          (_) => CityPickerSheet( repository: _repository),
     );
     if (location == null || !mounted) return;
     setState(() {
@@ -237,7 +234,7 @@ class _OutfitGeneratorScreenState extends ConsumerState<OutfitGeneratorScreen> {
     _weatherCancelToken = cancelToken;
     try {
       final result = await _repository.weatherContext(
-        token: widget.token,
+        
         location: location,
         wearAt: _wearAt,
         cancelToken: cancelToken,
@@ -293,7 +290,7 @@ class _OutfitGeneratorScreenState extends ConsumerState<OutfitGeneratorScreen> {
     });
     try {
       final preview = await _repository.generate(
-        token: widget.token,
+        
         occasion: _occasion.text,
         styleNotes: _notes.text,
         location: _location,
@@ -324,7 +321,7 @@ class _OutfitGeneratorScreenState extends ConsumerState<OutfitGeneratorScreen> {
     setState(() => _saving = true);
     try {
       await _repository.save(
-        token: widget.token,
+        
         preview: preview,
         itemLayout: const [],
         idempotencyKey: _saveIdempotencyKey ??= const Uuid().v4(),
@@ -810,7 +807,7 @@ class _OutfitGeneratorScreenState extends ConsumerState<OutfitGeneratorScreen> {
                                           : () => context.push(
                                                 '/creative',
                                                 extra: CreativeRouteArgs(
-                                                  token: widget.token,
+                                                  
                                                   initialItems: _preview!.items,
                                                   initialName: _preview!.name,
                                                   initialOccasion: _preview!.occasion,
@@ -1038,3 +1035,5 @@ class _InfoBanner extends StatelessWidget {
     ),
   );
 }
+
+

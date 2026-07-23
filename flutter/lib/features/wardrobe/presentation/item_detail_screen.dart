@@ -17,13 +17,11 @@ import 'wardrobe_change_notifier.dart';
 class ItemDetailScreen extends ConsumerStatefulWidget {
   const ItemDetailScreen({
     required this.itemId,
-    required this.token,
+    
     super.key,
   });
 
   final String itemId;
-  final String token;
-
   @override
   ConsumerState<ItemDetailScreen> createState() => _ItemDetailScreenState();
 }
@@ -51,8 +49,8 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
     });
     try {
       final results = await Future.wait([
-        _repository.get(itemId: widget.itemId, token: widget.token),
-        _repository.usage(itemId: widget.itemId, token: widget.token),
+        _repository.get(itemId: widget.itemId, ),
+        _repository.usage(itemId: widget.itemId, ),
       ]);
       if (mounted && requestEpoch == _loadEpoch) {
         setState(() {
@@ -94,7 +92,7 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
     try {
       await _repository.update(
         draft: item,
-        token: widget.token,
+        
         itemName: values.itemName,
         category: values.category,
         customCategory: values.customCategory,
@@ -186,7 +184,7 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
     if (confirmed != true) return;
     setState(() => _mutating = true);
     try {
-      await _repository.archive(itemId: item.id, token: widget.token);
+      await _repository.archive(itemId: item.id, );
       ref.read(wardrobeRevisionProvider.notifier).notifyChanged();
       if (mounted) Navigator.pop(context, true);
     } on DioException catch (error) {
@@ -205,7 +203,7 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
     if (_mutating || item == null) return;
     setState(() => _mutating = true);
     try {
-      await _repository.restore(itemId: item.id, token: widget.token);
+      await _repository.restore(itemId: item.id, );
       ref.read(wardrobeRevisionProvider.notifier).notifyChanged();
       await _load();
       if (mounted) {
@@ -538,7 +536,7 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
                             trailingIcon: Icons.chevron_right,
                             onTap: () => context.push(
                               '/outfits/${outfit.id}',
-                              extra: widget.token,
+                              
                             ),
                           ),
                         ),
@@ -736,3 +734,5 @@ class _InfoRow extends StatelessWidget {
     ),
   );
 }
+
+

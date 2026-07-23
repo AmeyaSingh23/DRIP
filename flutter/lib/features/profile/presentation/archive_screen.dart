@@ -15,9 +15,7 @@ import '../../wardrobe/presentation/widgets/wardrobe_hanger_refresh.dart';
 import '../../wardrobe/presentation/wardrobe_change_notifier.dart';
 
 class ArchiveScreen extends ConsumerStatefulWidget {
-  const ArchiveScreen({required this.token, super.key});
-  final String token;
-
+  const ArchiveScreen({ super.key});
   @override
   ConsumerState<ArchiveScreen> createState() => _ArchiveScreenState();
 }
@@ -43,8 +41,8 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
     });
     try {
       final results = await Future.wait([
-        _wardrobe.list(token: widget.token, archived: true),
-        _outfits.list(token: widget.token, archived: true),
+        _wardrobe.list( archived: true),
+        _outfits.list( archived: true),
       ]);
       if (mounted) {
         setState(() {
@@ -68,7 +66,7 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
 
   Future<void> _restoreItem(ClothingItemDraft item) async {
     try {
-      await _wardrobe.restore(itemId: item.id, token: widget.token);
+      await _wardrobe.restore(itemId: item.id, );
       ref.read(wardrobeRevisionProvider.notifier).notifyChanged();
       await _load();
     } on DioException catch (error) { _show(_message(error)); }
@@ -76,7 +74,7 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
 
   Future<void> _restoreOutfit(SavedOutfit outfit) async {
     try {
-      await _outfits.restore(token: widget.token, outfitId: outfit.id);
+      await _outfits.restore( outfitId: outfit.id);
       ref.read(outfitRevisionProvider.notifier).notifyChanged();
       await _load();
     } on DioException catch (error) { _show(_message(error)); }
@@ -86,7 +84,7 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
     final confirmed = await _confirm('Delete item forever?', 'This permanently deletes the item. It cannot be undone.');
     if (confirmed != true) return;
     try {
-      await _wardrobe.permanentlyErase(itemId: item.id, token: widget.token);
+      await _wardrobe.permanentlyErase(itemId: item.id, );
       ref.read(wardrobeRevisionProvider.notifier).notifyChanged();
       await _load();
     } on DioException catch (error) { _show(_message(error)); }
@@ -96,7 +94,7 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
     final confirmed = await _confirm('Delete outfit forever?', 'This permanently deletes the outfit. It cannot be undone.');
     if (confirmed != true) return;
     try {
-      await _outfits.permanentlyDelete(token: widget.token, outfitId: outfit.id);
+      await _outfits.permanentlyDelete( outfitId: outfit.id);
       ref.read(outfitRevisionProvider.notifier).notifyChanged();
       await _load();
     } on DioException catch (error) { _show(_message(error)); }
@@ -422,7 +420,7 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
               (context, index) {
                 final item = _items[index];
                 return _buildGlassCard(
-                  onTap: () => context.push('/wardrobe/items/${item.id}', extra: widget.token),
+                  onTap: () => context.push('/wardrobe/items/${item.id}', ),
                   child: Row(
                     children: [
                       ClipRRect(
@@ -490,7 +488,7 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
               (context, index) {
                 final outfit = _outfitsList[index];
                 return _buildGlassCard(
-                  onTap: () => context.push('/outfits/${outfit.id}', extra: widget.token),
+                  onTap: () => context.push('/outfits/${outfit.id}', ),
                   child: Row(
                     children: [
                       Container(
@@ -540,3 +538,5 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
     ],
   );
 }
+
+

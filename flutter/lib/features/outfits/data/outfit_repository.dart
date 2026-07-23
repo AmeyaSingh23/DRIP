@@ -12,7 +12,7 @@ final class OutfitRepository {
   final ApiClient _client;
 
   Future<OutfitPreview> generate({
-    required String token,
+    
     String? occasion,
     String? styleNotes,
     OutfitLocation? location,
@@ -29,7 +29,7 @@ final class OutfitRepository {
         if (wearAt != null) 'wear_at': wearAt.toIso8601String(),
       },
       options: Options(
-        headers: {'Authorization': 'Bearer $token'},
+        
         receiveTimeout: const Duration(seconds: 90),
       ),
     );
@@ -37,7 +37,7 @@ final class OutfitRepository {
   }
 
   Future<List<OutfitLocation>> searchLocations({
-    required String token,
+    
     required String query,
     CancelToken? cancelToken,
   }) async {
@@ -46,7 +46,7 @@ final class OutfitRepository {
       queryParameters: {'query': query},
       cancelToken: cancelToken,
       options: Options(
-        headers: {'Authorization': 'Bearer $token'},
+        
         receiveTimeout: const Duration(seconds: 3),
       ),
     );
@@ -57,7 +57,7 @@ final class OutfitRepository {
   }
 
   Future<WeatherContextResult> weatherContext({
-    required String token,
+    
     required OutfitLocation location,
     required DateTime wearAt,
     CancelToken? cancelToken,
@@ -67,7 +67,7 @@ final class OutfitRepository {
       data: {'location': location.toJson(), 'wear_at': wearAt.toIso8601String()},
       cancelToken: cancelToken,
       options: Options(
-        headers: {'Authorization': 'Bearer $token'},
+        
         connectTimeout: const Duration(seconds: 3),
         receiveTimeout: const Duration(seconds: 6),
       ),
@@ -76,7 +76,7 @@ final class OutfitRepository {
   }
 
   Future<void> save({
-    required String token,
+    
     required OutfitPreview preview,
     required List<OutfitItemLayout> itemLayout,
     required String idempotencyKey,
@@ -91,17 +91,16 @@ final class OutfitRepository {
     },
     options: Options(
       headers: {
-        'Authorization': 'Bearer $token',
         'Idempotency-Key': idempotencyKey,
       },
     ),
   );
 
-  Future<List<SavedOutfit>> list({required String token, bool archived = false}) async {
+  Future<List<SavedOutfit>> list({ bool archived = false}) async {
     final response = await _client.dio.get<List<dynamic>>(
       '/api/v1/outfits',
       queryParameters: {if (archived) 'archived': true},
-      options: Options(headers: {'Authorization': 'Bearer $token'}),
+      
     );
     return (response.data ?? const [])
         .whereType<Map<String, dynamic>>()
@@ -110,18 +109,18 @@ final class OutfitRepository {
   }
 
   Future<SavedOutfit> get({
-    required String token,
+    
     required String outfitId,
   }) async {
     final response = await _client.dio.get<Map<String, dynamic>>(
       '/api/v1/outfits/$outfitId',
-      options: Options(headers: {'Authorization': 'Bearer $token'}),
+      
     );
     return SavedOutfit.fromJson(response.data!);
   }
 
   Future<SavedOutfit> update({
-    required String token,
+    
     required String outfitId,
     String? name,
     String? occasion,
@@ -137,33 +136,35 @@ final class OutfitRepository {
         if (itemLayout != null)
           'item_layout': itemLayout.map((entry) => entry.toJson()).toList(),
       },
-      options: Options(headers: {'Authorization': 'Bearer $token'}),
+      
     );
     return SavedOutfit.fromJson(response.data!);
   }
 
-  Future<void> archive({required String token, required String outfitId}) =>
+  Future<void> archive({ required String outfitId}) =>
       _client.dio.delete<void>(
         '/api/v1/outfits/$outfitId',
-        options: Options(headers: {'Authorization': 'Bearer $token'}),
+        
       );
 
   Future<SavedOutfit> restore({
-    required String token,
+    
     required String outfitId,
   }) async {
     final response = await _client.dio.post<Map<String, dynamic>>(
       '/api/v1/outfits/$outfitId/restore',
-      options: Options(headers: {'Authorization': 'Bearer $token'}),
+      
     );
     return SavedOutfit.fromJson(response.data!);
   }
 
   Future<void> permanentlyDelete({
-    required String token,
+    
     required String outfitId,
   }) => _client.dio.delete<void>(
     '/api/v1/outfits/$outfitId/permanent',
-    options: Options(headers: {'Authorization': 'Bearer $token'}),
+    
   );
 }
+
+
