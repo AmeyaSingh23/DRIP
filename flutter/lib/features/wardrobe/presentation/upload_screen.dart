@@ -489,27 +489,15 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
       child: GestureDetector(
         onTap: () => FocusScope.of(context).unfocus(),
         child: Scaffold(
-          backgroundColor: isDark ? const Color(0xFF2A1B22) : const Color(0xFFFFF5F7),
-          extendBodyBehindAppBar: true,
-          appBar: AppBar(
-            title: const Text('Add to wardrobe'),
-            automaticallyImplyLeading: !_busy,
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            flexibleSpace: ClipRRect(
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-                child: Container(
-                  color: Theme.of(context).brightness == Brightness.dark
-                      ? Colors.black.withOpacity(0.2)
-                      : Colors.white.withOpacity(0.3),
-                ),
-              ),
-            ),
-          ),
+          backgroundColor: Colors.transparent,
           body: Stack(
             fit: StackFit.expand,
             children: [
+              Positioned.fill(
+                child: Container(
+                  color: isDark ? const Color(0xFF2A1B22) : const Color(0xFFFFF5F7),
+                ),
+              ),
               Positioned.fill(
                 child: Opacity(
                   opacity: isDark ? 0.35 : 0.25,
@@ -521,43 +509,62 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
                   ),
                 ),
               ),
-              SafeArea(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-              Text(_status, style: Theme.of(context).textTheme.titleMedium),
-              if (_error != null) _errorBox(_error!),
-              if (_wornItemDetected) _wornWarning(),
-              if (_cutout != null) _reviewForm(),
-              if (_cutout == null && !_busy) ...[
-                const SizedBox(height: 16),
-                _guidance(),
-                const SizedBox(height: 16),
-                _glassButton(
-                onPressed: _busy ? null : () => _choose(ImageSource.camera),
-                icon: Icons.camera_alt,
-                label: 'Take photo',
-                isGlass: true,
+              CustomScrollView(
+                physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                slivers: [
+                  SliverAppBar(
+                    title: const Text('Add to wardrobe'),
+                    automaticallyImplyLeading: !_busy,
+                    backgroundColor: Colors.transparent,
+                    elevation: 0,
+                    pinned: true,
+                    flexibleSpace: ClipRect(
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                        child: Container(
+                          color: isDark
+                              ? Colors.black.withOpacity(0.2)
+                              : Colors.white.withOpacity(0.3),
+                        ),
+                      ),
+                    ),
+                  ),
+                  SliverPadding(
+                    padding: const EdgeInsets.all(20),
+                    sliver: SliverList(
+                      delegate: SliverChildListDelegate([
+                        Text(_status, style: Theme.of(context).textTheme.titleMedium),
+                        if (_error != null) _errorBox(_error!),
+                        if (_wornItemDetected) _wornWarning(),
+                        if (_cutout != null) _reviewForm(),
+                        if (_cutout == null && !_busy) ...[
+                          const SizedBox(height: 16),
+                          _guidance(),
+                          const SizedBox(height: 16),
+                          _glassButton(
+                            onPressed: _busy ? null : () => _choose(ImageSource.camera),
+                            icon: Icons.camera_alt,
+                            label: 'Take photo',
+                            isGlass: true,
+                          ),
+                          const SizedBox(height: 12),
+                          _glassButton(
+                            onPressed: _busy ? null : () => _choose(ImageSource.gallery),
+                            icon: Icons.photo_library,
+                            label: 'Choose from gallery',
+                            isGlass: true,
+                          ),
+                        ],
+                        if (_busy && _cutout == null)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 60),
+                            child: Center(child: HangerLoadingIndicator()),
+                          ),
+                      ]),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
-              _glassButton(
-                onPressed: _busy ? null : () => _choose(ImageSource.gallery),
-                icon: Icons.photo_library,
-                label: 'Choose from gallery',
-                isGlass: true,
-              ),
-              ],
-              if (_busy && _cutout == null)
-                const Padding(
-                  padding: EdgeInsets.only(top: 60),
-                  child: Center(child: HangerLoadingIndicator()),
-                ),
-            ],
-          ),
-        ),
-      ),
             ],
           ),
         ),
