@@ -13,6 +13,7 @@ import '../../wardrobe/data/wardrobe_repository.dart';
 import '../../wardrobe/domain/clothing_item_draft.dart';
 import '../../wardrobe/presentation/widgets/wardrobe_hanger_refresh.dart';
 import '../../wardrobe/presentation/wardrobe_change_notifier.dart';
+import 'providers/profile_stats_provider.dart';
 
 class ArchiveScreen extends ConsumerStatefulWidget {
   const ArchiveScreen({ super.key});
@@ -65,39 +66,95 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
   }
 
   Future<void> _restoreItem(ClothingItemDraft item) async {
+    final original = [..._items];
+    setState(() {
+      _items = _items.where((i) => i.id != item.id).toList();
+    });
+    ref.read(profileStatsProvider.notifier).incrementItems();
+
     try {
-      await _wardrobe.restore(itemId: item.id, );
-      ref.read(wardrobeRevisionProvider.notifier).notifyChanged();
-      await _load();
-    } on DioException catch (error) { _show(_message(error)); }
+      await _wardrobe.restore(itemId: item.id);
+      if (mounted) {
+        ref.read(wardrobeRevisionProvider.notifier).notifyChanged();
+      }
+    } on DioException catch (error) {
+      if (mounted) {
+        setState(() => _items = original);
+        ref.read(profileStatsProvider.notifier).decrementItems();
+        _show(_message(error));
+      }
+    }
   }
 
   Future<void> _restoreOutfit(SavedOutfit outfit) async {
+    final original = [..._outfitsList];
+    setState(() {
+      _outfitsList = _outfitsList.where((o) => o.id != outfit.id).toList();
+    });
+    ref.read(profileStatsProvider.notifier).incrementOutfits();
+
     try {
-      await _outfits.restore( outfitId: outfit.id);
-      ref.read(outfitRevisionProvider.notifier).notifyChanged();
-      await _load();
-    } on DioException catch (error) { _show(_message(error)); }
+      await _outfits.restore(outfitId: outfit.id);
+      if (mounted) {
+        ref.read(outfitRevisionProvider.notifier).notifyChanged();
+      }
+    } on DioException catch (error) {
+      if (mounted) {
+        setState(() => _outfitsList = original);
+        ref.read(profileStatsProvider.notifier).decrementOutfits();
+        _show(_message(error));
+      }
+    }
   }
 
   Future<void> _deleteItem(ClothingItemDraft item) async {
-    final confirmed = await _confirm('Delete item forever?', 'This permanently deletes the item. It cannot be undone.');
+    final confirmed = await _confirm(
+      'Delete item forever?',
+      'This permanently deletes the item. It cannot be undone.',
+    );
     if (confirmed != true) return;
+
+    final original = [..._items];
+    setState(() {
+      _items = _items.where((i) => i.id != item.id).toList();
+    });
+
     try {
-      await _wardrobe.permanentlyErase(itemId: item.id, );
-      ref.read(wardrobeRevisionProvider.notifier).notifyChanged();
-      await _load();
-    } on DioException catch (error) { _show(_message(error)); }
+      await _wardrobe.permanentlyErase(itemId: item.id);
+      if (mounted) {
+        ref.read(wardrobeRevisionProvider.notifier).notifyChanged();
+      }
+    } on DioException catch (error) {
+      if (mounted) {
+        setState(() => _items = original);
+        _show(_message(error));
+      }
+    }
   }
 
   Future<void> _deleteOutfit(SavedOutfit outfit) async {
-    final confirmed = await _confirm('Delete outfit forever?', 'This permanently deletes the outfit. It cannot be undone.');
+    final confirmed = await _confirm(
+      'Delete outfit forever?',
+      'This permanently deletes the outfit. It cannot be undone.',
+    );
     if (confirmed != true) return;
+
+    final original = [..._outfitsList];
+    setState(() {
+      _outfitsList = _outfitsList.where((o) => o.id != outfit.id).toList();
+    });
+
     try {
-      await _outfits.permanentlyDelete( outfitId: outfit.id);
-      ref.read(outfitRevisionProvider.notifier).notifyChanged();
-      await _load();
-    } on DioException catch (error) { _show(_message(error)); }
+      await _outfits.permanentlyDelete(outfitId: outfit.id);
+      if (mounted) {
+        ref.read(outfitRevisionProvider.notifier).notifyChanged();
+      }
+    } on DioException catch (error) {
+      if (mounted) {
+        setState(() => _outfitsList = original);
+        _show(_message(error));
+      }
+    }
   }
 
   Future<bool?> _confirm(String title, String content) => showDialog<bool>(

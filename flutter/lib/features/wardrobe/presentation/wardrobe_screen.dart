@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -14,6 +15,8 @@ import 'upload_screen.dart';
 import 'widgets/wardrobe_search_bar.dart';
 import 'widgets/wardrobe_filter_tabs.dart';
 import 'widgets/wardrobe_hanger_refresh.dart';
+import 'providers/wardrobe_provider.dart';
+import '../../profile/presentation/providers/profile_stats_provider.dart';
 
 class WardrobeScreen extends ConsumerStatefulWidget {
   const WardrobeScreen({required this.email,  super.key});
@@ -35,93 +38,38 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
     'Uniform',
   ];
 
-  final _repository = WardrobeRepository(ApiClient());
   final _searchController = TextEditingController();
   final _searchFocusNode = FocusNode();
-  List<ClothingItemDraft> _items = const [];
-  String _selectedCategory = 'All';
-  bool _loading = true;
-  bool _deleting = false;
-  String? _error;
-  int _loadEpoch = 0;
   final _scrollController = ScrollController();
-  int _offset = 0;
-  bool _hasMore = true;
-  bool _loadingMore = false;
+  Timer? _searchDebounce;
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    _load(refresh: true);
+    Future.microtask(() {
+      ref.read(wardrobeItemsProvider.notifier).load(refresh: true);
+    });
   }
 
   void _onScroll() {
     if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
-      _load();
+      ref.read(wardrobeItemsProvider.notifier).load();
     }
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _scrollController.dispose();
     _searchController.dispose();
     _searchFocusNode.dispose();
     super.dispose();
   }
 
-  Future<void> _load({bool refresh = false}) async {
-    if (refresh) {
-      _offset = 0;
-      _hasMore = true;
-    }
-    if (!_hasMore || _loadingMore) return;
-    
-    final requestEpoch = ++_loadEpoch;
-    setState(() {
-      if (_items.isEmpty || refresh) _loading = true;
-      else _loadingMore = true;
-      _error = null;
-    });
-    try {
-      final items = await _repository.list(
-        category: _selectedCategory,
-        search: _searchController.text,
-        limit: 30,
-        offset: _offset,
-      );
-      if (mounted && requestEpoch == _loadEpoch) {
-        setState(() {
-          if (refresh) {
-            _items = items;
-          } else {
-            _items = [..._items, ...items];
-          }
-          _offset += items.length;
-          _hasMore = items.length == 30;
-          
-          if (!_categories.contains(_selectedCategory)) {
-            _selectedCategory = 'All';
-          }
-        });
-      }
-    } on DioException catch (error) {
-      if (mounted && requestEpoch == _loadEpoch) {
-        setState(() => _error = _messageFor(error));
-      }
-    } finally {
-      if (mounted && requestEpoch == _loadEpoch) {
-        setState(() {
-          _loading = false;
-          _loadingMore = false;
-        });
-      }
-    }
-  }
-
-  List<String> get _categories {
+  List<String> _categories(List<ClothingItemDraft> items) {
     final custom = <String>{};
-    for (final item in _items) {
+    for (final item in items) {
       final value = item.customCategory?.trim();
       if (item.category == 'Custom' && value != null && value.isNotEmpty) {
         custom.add(value);
@@ -129,30 +77,6 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
     }
     final sortedCustom = custom.toList()..sort();
     return [..._baseCategories, ...sortedCustom];
-  }
-
-  List<ClothingItemDraft> get _filteredItems {
-    final search = _searchController.text.trim().toLowerCase();
-    return _items.where((item) {
-      final inCategory =
-          _selectedCategory == 'All' ||
-          item.category == _selectedCategory ||
-          (item.category == 'Custom' &&
-              item.customCategory == _selectedCategory);
-      if (!inCategory) return false;
-      if (search.isEmpty) return true;
-      final terms =
-          [
-            item.itemName,
-            item.category,
-            item.customCategory,
-            item.color,
-            item.pattern,
-            item.fabric,
-            ...item.tags,
-          ].whereType<String>().join(' ').toLowerCase();
-      return terms.contains(search);
-    }).toList();
   }
 
   String _messageFor(DioException error) {
@@ -164,7 +88,6 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
   }
 
   Future<void> _archive(ClothingItemDraft item) async {
-    if (_deleting) return;
     final confirmed = await showDialog<bool>(
       context: context,
       barrierColor: Colors.black26,
@@ -232,19 +155,15 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
           ),
     );
     if (confirmed != true) return;
-    setState(() => _deleting = true);
     try {
-      await _repository.archive(itemId: item.id, );
-      ref.read(wardrobeRevisionProvider.notifier).notifyChanged();
-      await _load(refresh: true);
-    } on DioException catch (error) {
+      ref.read(profileStatsProvider.notifier).decrementItems();
+      await ref.read(wardrobeItemsProvider.notifier).archiveOptimistically(item);
+    } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(_messageFor(error))));
+        ref.read(profileStatsProvider.notifier).incrementItems(); // revert counter
+        final errorMsg = error is DioException ? _messageFor(error) : error.toString();
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMsg)));
       }
-    } finally {
-      if (mounted) setState(() => _deleting = false);
     }
   }
 
@@ -357,8 +276,9 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    ref.listen(wardrobeRevisionProvider, (_, _) => _load(refresh: true));
-    final items = _filteredItems;
+    final wardrobeState = ref.watch(wardrobeItemsProvider);
+    final items = wardrobeState.items;
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: CustomScrollView(
@@ -390,22 +310,23 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
               WardrobeSearchBar(
                 controller: _searchController,
                 focusNode: _searchFocusNode,
-                onChanged: () => setState(() {}),
+                onChanged: () {
+                  _searchDebounce?.cancel();
+                  _searchDebounce = Timer(const Duration(milliseconds: 350), () {
+                    ref.read(wardrobeItemsProvider.notifier).updateSearch(_searchController.text);
+                  });
+                },
               ),
               IconButton(
-                onPressed: _deleting
-                    ? null
-                    : () async {
-                        _searchFocusNode.unfocus();
-                        await context.push(
-                          '/wardrobe/upload',
-                          extra: UploadRouteArgs(
-                            
-                            email: widget.email,
-                          ),
-                        );
-                        if (mounted) await _load(refresh: true);
-                      },
+                onPressed: () async {
+                  _searchFocusNode.unfocus();
+                  await context.push(
+                    '/wardrobe/upload',
+                    extra: UploadRouteArgs(
+                      email: widget.email,
+                    ),
+                  );
+                },
                 tooltip: 'Add wardrobe item',
                 icon: Icon(
                   Icons.add_photo_alternate_outlined,
@@ -416,22 +337,22 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
             bottom: PreferredSize(
               preferredSize: const Size.fromHeight(60.0),
               child: WardrobeFilterTabs(
-                categories: _categories,
-                selectedCategory: _selectedCategory,
+                categories: _categories(items),
+                selectedCategory: wardrobeState.category,
                 onSelected: (category) {
                   _searchFocusNode.unfocus();
-                  setState(() => _selectedCategory = category);
+                  ref.read(wardrobeItemsProvider.notifier).updateCategory(category);
                 },
               ),
             ),
           ),
-          WardrobeHangerRefreshControl(onRefresh: () => _load(refresh: true)),
-          if (_error != null)
+          WardrobeHangerRefreshControl(onRefresh: () => ref.read(wardrobeItemsProvider.notifier).load(refresh: true)),
+          if (wardrobeState.error != null && items.isEmpty)
             SliverFillRemaining(
               hasScrollBody: false,
-              child: Center(child: Text(_error!)),
+              child: Center(child: Text(wardrobeState.error!)),
             )
-          else if (_loading)
+          else if (wardrobeState.loading)
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               sliver: SliverGrid(
@@ -447,7 +368,7 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
                     height: double.infinity,
                     borderRadius: 16,
                   ),
-                  childCount: 6, // Show 6 skeleton placeholders
+                  childCount: 6,
                 ),
               ),
             )
@@ -473,19 +394,14 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
                     return InkWell(
                       onTap: () async {
                         _searchFocusNode.unfocus();
-                        final changed = await context.push<bool>(
+                        await context.push<bool>(
                           '/wardrobe/items/${item.id}',
-                          
                         );
-                        if (changed == true) await _load();
                       },
-                      onLongPress:
-                          _deleting
-                              ? null
-                              : () {
-                                _searchFocusNode.unfocus();
-                                _showActions(item);
-                              },
+                      onLongPress: () {
+                        _searchFocusNode.unfocus();
+                        _showActions(item);
+                      },
                       borderRadius: BorderRadius.circular(16),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(16),
@@ -505,47 +421,47 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
                               ),
                             ),
                             child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Expanded(
-                              child: Padding(
-                                padding: const EdgeInsets.all(10),
-                                child: CachedWardrobeImage(
-                                  url: item.cloudinaryUrl,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Expanded(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(10),
+                                    child: CachedWardrobeImage(
+                                      url: item.cloudinaryUrl,
+                                    ),
+                                  ),
                                 ),
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    item.itemName ?? item.category,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: Theme.of(context).colorScheme.onSurface,
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        item.itemName ?? item.category,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: Theme.of(context).colorScheme.onSurface,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      Text(
+                                        [
+                                          item.color,
+                                          item.pattern,
+                                        ].whereType<String>().join(' · '),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  Text(
-                                    [
-                                      item.color,
-                                      item.pattern,
-                                    ].whereType<String>().join(' · '),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8),
-                                    ),
-                                  ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                      ),
+                          ),
                         ),
                       ),
                     );
@@ -554,10 +470,17 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
                 ),
               ),
             ),
-          ],
+          if (wardrobeState.loadingMore)
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: CircularProgressIndicator(),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
 }
-
-

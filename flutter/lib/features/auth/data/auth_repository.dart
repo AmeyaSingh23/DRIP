@@ -7,6 +7,8 @@ import '../../../core/storage/secure_token_storage.dart';
 import '../domain/auth_session.dart';
 import '../domain/maison_user.dart';
 
+import '../domain/user_stats.dart';
+
 final class AuthRepository {
   AuthRepository(this._client, this._tokenStorage);
 
@@ -47,6 +49,13 @@ final class AuthRepository {
       '/api/v1/auth/me',
     );
     return MaisonUser.fromJson(response.data!);
+  }
+
+  Future<UserStats> stats() async {
+    final response = await _client.dio.get<Map<String, dynamic>>(
+      '/api/v1/auth/stats',
+    );
+    return UserStats.fromJson(response.data!);
   }
 
   Future<void> logout({String? accessToken}) async {

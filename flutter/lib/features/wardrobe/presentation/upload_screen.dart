@@ -18,6 +18,8 @@ import '../domain/clothing_tag_result.dart';
 import 'cutout_editor_screen.dart';
 import 'wardrobe_change_notifier.dart';
 import '../../../core/widgets/hanger_loading_indicator.dart';
+import 'providers/wardrobe_provider.dart';
+import '../../profile/presentation/providers/profile_stats_provider.dart';
 
 final class UploadRouteArgs {
   const UploadRouteArgs({ required this.email});
@@ -52,7 +54,7 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
     'Custom',
   ];
   final _picker = ImagePicker();
-  final _repository = WardrobeRepository(ApiClient());
+  WardrobeRepository get _repository => ref.read(wardrobeRepositoryProvider);
   final _name = TextEditingController();
   final _color = TextEditingController();
   final _customCategory = TextEditingController();
@@ -356,9 +358,8 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
       _status = 'Saving item...';
     });
     try {
-      await _repository.manualUpload(
+      final newItem = await _repository.manualUpload(
         cutout: cutout,
-        
         itemName: _name.text.trim(),
         category: _category,
         color: _color.text.trim(),
@@ -369,6 +370,8 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
       await _deleteTemporaryFile(cutout);
       await _clearTaggingImage();
       if (mounted) {
+        ref.read(wardrobeItemsProvider.notifier).addOptimistically(newItem);
+        ref.read(profileStatsProvider.notifier).incrementItems();
         ref.read(wardrobeRevisionProvider.notifier).notifyChanged();
         setState(() {
           _cutout = null;

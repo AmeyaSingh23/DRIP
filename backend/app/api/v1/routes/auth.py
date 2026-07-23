@@ -11,7 +11,7 @@ from app.api.deps import get_current_user, get_db_session
 from app.core.config import get_settings
 from app.core.security import create_access_token
 from app.db.models.user import User
-from app.schemas.auth import GoogleAuthRequest, TokenResponse, UserResponse
+from app.schemas.auth import GoogleAuthRequest, TokenResponse, UserResponse, UserStatsResponse
 
 router = APIRouter()
 
@@ -74,6 +74,29 @@ async def google_login(request: Request, payload: GoogleAuthRequest, session: As
 @router.get("/me", response_model=UserResponse)
 async def me(current_user: User = Depends(get_current_user)) -> UserResponse:
     return UserResponse.model_validate(current_user)
+
+
+@router.get("/stats", response_model=UserStatsResponse)
+async def get_stats(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session)
+) -> UserStatsResponse:
+    from app.db.models.clothing_item import ClothingItem
+    from app.db.models.outfit import Outfit
+    from sqlalchemy import func  # type: ignore
+
+    items_count = await session.scalar(
+        select(func.count(ClothingItem.id))
+        .where(ClothingItem.user_id == current_user.id, ClothingItem.archived_at.is_(None))
+    )
+    outfits_count = await session.scalar(
+        select(func.count(Outfit.id))
+        .where(Outfit.user_id == current_user.id, Outfit.archived_at.is_(None))
+    )
+    return UserStatsResponse(
+        total_items=items_count or 0,
+        saved_outfits=outfits_count or 0
+    )
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

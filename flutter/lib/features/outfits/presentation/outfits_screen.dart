@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_client.dart';
@@ -10,59 +11,28 @@ import '../../../core/widgets/hanger_loading_indicator.dart';
 import '../../wardrobe/presentation/widgets/wardrobe_hanger_refresh.dart';
 import '../data/outfit_repository.dart';
 import '../domain/saved_outfit.dart';
+import 'providers/outfits_provider.dart';
+import '../../profile/presentation/providers/profile_stats_provider.dart';
+import '../../wardrobe/presentation/wardrobe_change_notifier.dart';
 
-class OutfitsScreen extends StatefulWidget {
+class OutfitsScreen extends ConsumerStatefulWidget {
   const OutfitsScreen({ super.key});
   @override
-  State<OutfitsScreen> createState() => _OutfitsScreenState();
+  ConsumerState<OutfitsScreen> createState() => _OutfitsScreenState();
 }
 
-class _OutfitsScreenState extends State<OutfitsScreen> {
-  final _repository = OutfitRepository(ApiClient());
-  List<SavedOutfit> _outfits = const [];
-  String? _error;
-  bool _loading = true;
-  String? _deletingId;
+class _OutfitsScreenState extends ConsumerState<OutfitsScreen> {
   String? _schedulingId; // tracks outfit being scheduled
-  int _loadEpoch = 0;
 
   @override
   void initState() {
     super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final requestEpoch = ++_loadEpoch;
-    setState(() {
-      if (_outfits.isEmpty) _loading = true;
-      _error = null;
+    Future.microtask(() {
+      ref.read(outfitsProvider.notifier).load();
     });
-    try {
-      final outfits = await _repository.list();
-      if (mounted && requestEpoch == _loadEpoch) {
-        setState(() => _outfits = outfits);
-      }
-    } on DioException catch (error) {
-      if (mounted && requestEpoch == _loadEpoch) {
-        final data = error.response?.data;
-        setState(
-          () =>
-              _error =
-                  data is Map && data['detail'] is String
-                      ? data['detail'] as String
-                      : 'Could not load saved outfits.',
-        );
-      }
-    } finally {
-      if (mounted && requestEpoch == _loadEpoch) {
-        setState(() => _loading = false);
-      }
-    }
   }
 
   Future<void> _delete(SavedOutfit outfit) async {
-    if (_deletingId != null) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder:
@@ -109,25 +79,23 @@ class _OutfitsScreenState extends State<OutfitsScreen> {
           ),
     );
     if (confirmed != true || !mounted) return;
-    setState(() => _deletingId = outfit.id);
     try {
-      await _repository.archive( outfitId: outfit.id);
-      await _load();
-    } on DioException catch (error) {
+      ref.read(profileStatsProvider.notifier).decrementOutfits();
+      await ref.read(outfitsProvider.notifier).archiveOptimistically(outfit);
+    } catch (error) {
       if (mounted) {
-        final data = error.response?.data;
+        ref.read(profileStatsProvider.notifier).incrementOutfits(); // revert stats
+        final detail = error is DioException && error.response?.data is Map
+            ? (error.response!.data as Map)['detail']
+            : null;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              data is Map && data['detail'] is String
-                  ? data['detail'] as String
-                  : 'Could not archive outfit. Please try again.',
+              detail ?? 'Could not archive outfit. Please try again.',
             ),
           ),
         );
       }
-    } finally {
-      if (mounted) setState(() => _deletingId = null);
     }
   }
 
@@ -208,104 +176,103 @@ class _OutfitsScreenState extends State<OutfitsScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: Colors.transparent,
-    body: CustomScrollView(
-      physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-      slivers: [
-        SliverAppBar(
-          title: const Text('Outfits'),
-          floating: false,
-          pinned: true,
-          backgroundColor: Colors.transparent,
-          flexibleSpace: ClipRect(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-              child: Container(
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? Colors.grey[900]!.withOpacity(0.50)
-                    : Colors.white.withOpacity(0.50),
+  Widget build(BuildContext context) {
+    final outfitsState = ref.watch(outfitsProvider);
+    final outfits = outfitsState.outfits;
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: CustomScrollView(
+        physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+        slivers: [
+          SliverAppBar(
+            title: const Text('Outfits'),
+            floating: false,
+            pinned: true,
+            backgroundColor: Colors.transparent,
+            flexibleSpace: ClipRect(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                child: Container(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey[900]!.withOpacity(0.50)
+                      : Colors.white.withOpacity(0.50),
+                ),
               ),
             ),
+            actions: [
+              IconButton(
+                onPressed: () async {
+                  await context.push('/outfits/generate', );
+                },
+                tooltip: 'Create an outfit',
+                icon: const Icon(Icons.auto_awesome_outlined),
+              ),
+            ],
           ),
-          actions: [
-            IconButton(
-              onPressed: () async {
-                await context.push('/outfits/generate', );
-                if (mounted) await _load();
-              },
-              tooltip: 'Create an outfit',
-              icon: const Icon(Icons.auto_awesome_outlined),
-            ),
-          ],
-        ),
-        WardrobeHangerRefreshControl(onRefresh: _load),
-        if (_loading)
-          const SliverFillRemaining(child: Center(child: HangerLoadingIndicator()))
-        else if (_error != null)
-          SliverFillRemaining(
-            hasScrollBody: false,
-            child: Column(
-              children: [
-                const SizedBox(height: 140),
-                Center(child: Text(_error!)),
-              ],
-            ),
-          )
-        else if (_outfits.isEmpty)
-          _buildEmptyState(
-            icon: Icons.dry_cleaning_outlined,
-            title: 'No Saved Outfits Yet',
-            subtitle: 'Let our AI Stylist create a perfect outfit for you.',
-            actionButton: FilledButton.icon(
-              onPressed: () async {
-                await context.push('/outfits/generate', );
-                if (mounted) await _load();
-              },
-              style: FilledButton.styleFrom(
-                foregroundColor: Theme.of(context).brightness == Brightness.dark
-                    ? Colors.white
-                    : Theme.of(context).colorScheme.onSurface,
+          WardrobeHangerRefreshControl(onRefresh: () => ref.read(outfitsProvider.notifier).load(refresh: true)),
+          if (outfitsState.loading)
+            const SliverFillRemaining(child: Center(child: HangerLoadingIndicator()))
+          else if (outfitsState.error != null && outfits.isEmpty)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Column(
+                children: [
+                  const SizedBox(height: 140),
+                  Center(child: Text(outfitsState.error!)),
+                ],
               ),
-              icon: const Icon(Icons.auto_awesome),
-              label: const Text('Generate Outfit'),
-            ),
-          )
-        else
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
-            sliver: SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final outfit = _outfits[index];
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 14),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(20),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-                        child: Material(
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? Colors.black.withOpacity(0.3)
-                              : Colors.white.withOpacity(0.4),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                            side: BorderSide(
-                              color: Theme.of(context).brightness == Brightness.dark
-                                  ? Colors.white.withOpacity(0.1)
-                                  : Colors.white.withOpacity(0.5),
+            )
+          else if (outfits.isEmpty)
+            _buildEmptyState(
+              icon: Icons.dry_cleaning_outlined,
+              title: 'No Saved Outfits Yet',
+              subtitle: 'Let our AI Stylist create a perfect outfit for you.',
+              actionButton: FilledButton.icon(
+                onPressed: () async {
+                  await context.push('/outfits/generate', );
+                },
+                style: FilledButton.styleFrom(
+                  foregroundColor: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.white
+                      : Theme.of(context).colorScheme.onSurface,
+                ),
+                icon: const Icon(Icons.auto_awesome),
+                label: const Text('Generate Outfit'),
+              ),
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final outfit = outfits[index];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 14),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                          child: Material(
+                            color: Theme.of(context).brightness == Brightness.dark
+                                ? Colors.black.withOpacity(0.3)
+                                : Colors.white.withOpacity(0.4),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                              side: BorderSide(
+                                color: Theme.of(context).brightness == Brightness.dark
+                                    ? Colors.white.withOpacity(0.1)
+                                    : Colors.white.withOpacity(0.5),
+                              ),
                             ),
-                          ),
-                          child: InkWell(
-                            onLongPress:
-                                _deletingId == null ? () => _delete(outfit) : null,
-                            onTap: () async {
-                              await context.push<bool>(
-                                '/outfits/${outfit.id}',
-                                
-                              );
-                              if (mounted) await _load();
-                            },
+                            child: InkWell(
+                              onLongPress: () => _delete(outfit),
+                              onTap: () async {
+                                await context.push<bool>(
+                                  '/outfits/${outfit.id}',
+                                );
+                              },
                             child: Padding(
                               padding: const EdgeInsets.all(16),
                               child: Column(
@@ -390,13 +357,14 @@ class _OutfitsScreenState extends State<OutfitsScreen> {
                     ),
                   );
                 },
-                childCount: _outfits.length,
+                childCount: outfits.length,
               ),
             ),
           ),
       ],
     ),
   );
+}
 }
 
 

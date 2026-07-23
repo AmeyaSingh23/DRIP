@@ -12,6 +12,7 @@ import '../../wardrobe/domain/clothing_item_draft.dart';
 import '../../wardrobe/presentation/wardrobe_change_notifier.dart';
 import '../data/creative_repository.dart';
 import '../../outfits/domain/outfit_item_layout.dart';
+import '../../profile/presentation/providers/profile_stats_provider.dart';
 
 final class CreativeRouteArgs {
   const CreativeRouteArgs({
@@ -460,6 +461,7 @@ class _CreativeSpaceScreenState extends ConsumerState<CreativeSpaceScreen> {
         outfitId: widget.editingOutfitId,
         idempotencyKey: _saveIdempotencyKey ??= const Uuid().v4(),
       );
+      ref.read(profileStatsProvider.notifier).incrementOutfits();
       ref.read(outfitRevisionProvider.notifier).notifyChanged();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

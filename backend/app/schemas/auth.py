@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field  # type: ignore
 
 
 class GoogleAuthRequest(BaseModel):
@@ -22,3 +22,9 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserResponse
+
+
+class UserStatsResponse(BaseModel):
+    total_items: int
+    saved_outfits: int
+

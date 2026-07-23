@@ -9,6 +9,7 @@ import '../../profile/presentation/archive_screen.dart';
 import '../../wardrobe/data/wardrobe_repository.dart';
 import '../../wardrobe/presentation/wardrobe_change_notifier.dart';
 import 'auth_controller.dart';
+import '../../profile/presentation/providers/profile_stats_provider.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({required this.email,  super.key});
@@ -18,38 +19,9 @@ class ProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
-  late final WardrobeRepository _wardrobeRepo;
-  late final OutfitRepository _outfitRepo;
-
-  int? _itemsCount;
-  int? _outfitsCount;
-  bool _loadingStats = true;
-
   @override
   void initState() {
     super.initState();
-    final client = ApiClient();
-    _wardrobeRepo = WardrobeRepository(client);
-    _outfitRepo = OutfitRepository(client);
-    _fetchStats();
-  }
-
-  Future<void> _fetchStats() async {
-    try {
-      final items = await _wardrobeRepo.list();
-      final outfits = await _outfitRepo.list();
-      if (mounted) {
-        setState(() {
-          _itemsCount = items.length;
-          _outfitsCount = outfits.length;
-          _loadingStats = false;
-        });
-      }
-    } catch (_) {
-      if (mounted) {
-        setState(() => _loadingStats = false);
-      }
-    }
   }
 
   void _showThemePicker() {
@@ -258,9 +230,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeProvider);
-
-    ref.listen(wardrobeRevisionProvider, (_, _) => _fetchStats());
-    ref.listen(outfitRevisionProvider, (_, _) => _fetchStats());
+    final statsAsync = ref.watch(profileStatsProvider);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -339,9 +309,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 // Stats Row
                 Row(
                   children: [
-                    _buildStatCard('Total Items', _itemsCount, Icons.checkroom_outlined),
+                    _buildStatCard('Total Items', statsAsync.value?.totalItems, Icons.checkroom_outlined),
                     const SizedBox(width: 12),
-                    _buildStatCard('Saved Outfits', _outfitsCount, Icons.dry_cleaning_outlined),
+                    _buildStatCard('Saved Outfits', statsAsync.value?.savedOutfits, Icons.dry_cleaning_outlined),
                   ],
                 ),
                 

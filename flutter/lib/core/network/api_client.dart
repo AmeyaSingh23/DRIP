@@ -24,8 +24,54 @@ final class ApiClient {
         },
       ),
     );
+    dio.interceptors.add(RetryInterceptor(dio));
   }
 
   final Dio dio;
   final SecureTokenStorage _storage = SecureTokenStorage();
+}
+
+class RetryInterceptor extends Interceptor {
+  final Dio dio;
+  RetryInterceptor(this.dio);
+
+  @override
+  Future<void> onError(DioException err, ErrorInterceptorHandler handler) async {
+    final requestOptions = err.requestOptions;
+    final int attempt = requestOptions.extra['retry_attempt'] as int? ?? 0;
+    if (attempt >= 2) {
+      return handler.next(err);
+    }
+
+    bool shouldRetry = false;
+    final isRead = requestOptions.method == 'GET';
+
+    if (err.type == DioExceptionType.connectionTimeout ||
+        err.type == DioExceptionType.connectionError) {
+      shouldRetry = true;
+    } else if (err.type == DioExceptionType.badResponse) {
+      final status = err.response?.statusCode;
+      if (status != null) {
+        if (isRead && (status == 502 || status == 503 || status == 504)) {
+          shouldRetry = true;
+        }
+      }
+    }
+
+    if (shouldRetry) {
+      requestOptions.extra['retry_attempt'] = attempt + 1;
+      
+      // Delay before retrying (exponential backoff: 1s, 2s)
+      await Future.delayed(Duration(seconds: attempt + 1));
+      
+      try {
+        final response = await dio.fetch(requestOptions);
+        return handler.resolve(response);
+      } on DioException catch (retryErr) {
+        return handler.next(retryErr);
+      }
+    }
+
+    return handler.next(err);
+  }
 }
