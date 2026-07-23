@@ -125,6 +125,8 @@ final class WardrobeRepository {
     String? category,
     String? search,
     bool archived = false,
+    int limit = 30,
+    int offset = 0,
   }) async {
     final response = await _client.dio.get<List<dynamic>>(
       '/api/v1/items',
@@ -132,6 +134,8 @@ final class WardrobeRepository {
         if (category != null && category != 'All') 'category': category,
         if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
         if (archived) 'archived': true,
+        'limit': limit,
+        'offset': offset,
       },
       
     );

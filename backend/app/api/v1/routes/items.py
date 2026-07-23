@@ -95,6 +95,8 @@ async def list_items(
     category: str | None = Query(default=None, max_length=50),
     search: str | None = Query(default=None, max_length=100),
     archived: bool = Query(default=False),
+    limit: int = Query(default=30, le=100),
+    offset: int = Query(default=0, ge=0),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
 ) -> list[ClothingItemUploadResponse]:
@@ -118,7 +120,7 @@ async def list_items(
                 cast(ClothingItem.tags, String).ilike(pattern, escape="\\"),
             )
         )
-    items = (await session.scalars(statement.order_by(ClothingItem.created_at.desc()))).all()
+    items = (await session.scalars(statement.order_by(ClothingItem.created_at.desc()).offset(offset).limit(limit))).all()
     return [_response(item) for item in items]
 
 

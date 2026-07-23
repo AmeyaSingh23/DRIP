@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -157,11 +158,11 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
                                               color: Colors.white,
                                               shape: BoxShape.circle,
                                             ),
-                                            child: Image.network(
-                                              'https://developers.google.com/identity/images/g-logo.png',
+                                            child: CachedNetworkImage(
+                                              imageUrl: 'https://developers.google.com/identity/images/g-logo.png',
                                               width: 18,
                                               height: 18,
-                                              errorBuilder: (_, __, ___) =>
+                                              errorWidget: (_, __, ___) =>
                                                   const Icon(Icons.g_mobiledata, color: Colors.black, size: 18),
                                             ),
                                           ),

@@ -44,33 +44,62 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
   bool _deleting = false;
   String? _error;
   int _loadEpoch = 0;
+  final _scrollController = ScrollController();
+  int _offset = 0;
+  bool _hasMore = true;
+  bool _loadingMore = false;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _scrollController.addListener(_onScroll);
+    _load(refresh: true);
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+      _load();
+    }
   }
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _searchController.dispose();
     _searchFocusNode.dispose();
     super.dispose();
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool refresh = false}) async {
+    if (refresh) {
+      _offset = 0;
+      _hasMore = true;
+    }
+    if (!_hasMore || _loadingMore) return;
+    
     final requestEpoch = ++_loadEpoch;
     setState(() {
-      if (_items.isEmpty) _loading = true;
+      if (_items.isEmpty || refresh) _loading = true;
+      else _loadingMore = true;
       _error = null;
     });
     try {
-      final items = await _repository.list();
+      final items = await _repository.list(
+        category: _selectedCategory,
+        search: _searchController.text,
+        limit: 30,
+        offset: _offset,
+      );
       if (mounted && requestEpoch == _loadEpoch) {
         setState(() {
-          _items = items;
-          // Custom tabs only exist while at least one active item uses them.
-          // A deletion may remove the current tab, so return to a stable view.
+          if (refresh) {
+            _items = items;
+          } else {
+            _items = [..._items, ...items];
+          }
+          _offset += items.length;
+          _hasMore = items.length == 30;
+          
           if (!_categories.contains(_selectedCategory)) {
             _selectedCategory = 'All';
           }
@@ -82,7 +111,10 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
       }
     } finally {
       if (mounted && requestEpoch == _loadEpoch) {
-        setState(() => _loading = false);
+        setState(() {
+          _loading = false;
+          _loadingMore = false;
+        });
       }
     }
   }
@@ -204,7 +236,7 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
     try {
       await _repository.archive(itemId: item.id, );
       ref.read(wardrobeRevisionProvider.notifier).notifyChanged();
-      await _load();
+      await _load(refresh: true);
     } on DioException catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -325,11 +357,12 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    ref.listen(wardrobeRevisionProvider, (_, _) => _load());
+    ref.listen(wardrobeRevisionProvider, (_, _) => _load(refresh: true));
     final items = _filteredItems;
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: CustomScrollView(
+        controller: _scrollController,
         physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
         slivers: [
           SliverAppBar(
@@ -371,7 +404,7 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
                             email: widget.email,
                           ),
                         );
-                        if (mounted) await _load();
+                        if (mounted) await _load(refresh: true);
                       },
                 tooltip: 'Add wardrobe item',
                 icon: Icon(
@@ -392,7 +425,7 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
               ),
             ),
           ),
-          WardrobeHangerRefreshControl(onRefresh: _load),
+          WardrobeHangerRefreshControl(onRefresh: () => _load(refresh: true)),
           if (_error != null)
             SliverFillRemaining(
               hasScrollBody: false,

@@ -1,11 +1,11 @@
 from collections.abc import AsyncGenerator
 from uuid import UUID
 
-import jwt
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+import jwt # type: ignore
+from fastapi import Depends, HTTPException, status # type: ignore
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer # type: ignore
+from sqlalchemy import select # type: ignore
+from sqlalchemy.ext.asyncio import AsyncSession # type: ignore
 
 from app.core.config import get_settings
 from app.db.models.user import User
@@ -14,9 +14,19 @@ from app.db.session import async_session_factory
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
-    async with async_session_factory() as session:
+    session = async_session_factory()
+    try:
         yield session
+    finally:
+        try:
+            await session.close()
+        except Exception as e:
+            logger.warning("Failed to close database session cleanly: %s", e)
 
 
 async def get_current_user(

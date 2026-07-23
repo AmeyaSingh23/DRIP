@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image/image.dart' as img;
@@ -22,6 +23,14 @@ final class UploadRouteArgs {
   const UploadRouteArgs({ required this.email});
   final String email;
 }
+
+@pragma('vm:entry-point')
+img.Image? _decodeImageIsolateWorker(Uint8List bytes) {
+  return img.decodeImage(bytes);
+}
+
+Future<img.Image?> _decodeImageIsolate(Uint8List bytes) => compute(_decodeImageIsolateWorker, bytes);
+
 
 class UploadScreen extends ConsumerStatefulWidget {
   const UploadScreen({ required this.email, super.key});
@@ -105,6 +114,9 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
     try {
       final picked = await _picker.pickImage(
         source: source,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 85,
       );
       if (picked == null) {
         if (mounted) {
@@ -384,7 +396,7 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
           ? img.copyResize(source, width: maxSide)
           : img.copyResize(source, height: maxSide);
   Future<File> _prepareForCutout(File original) async {
-    final source = img.decodeImage(await original.readAsBytes());
+    final source = await _decodeImageIsolate(await original.readAsBytes());
     if (source == null) {
       throw StateError('The selected image could not be decoded.');
     }
@@ -402,7 +414,7 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
   }
 
   Future<File> _prepareCutoutForUpload(File cutout) async {
-    final source = img.decodeImage(await cutout.readAsBytes());
+    final source = await _decodeImageIsolate(await cutout.readAsBytes());
     if (source == null) {
       throw StateError('The cutout could not be processed.');
     }
@@ -417,7 +429,7 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
   }
 
   Future<File> _downscaleForTagging(File original) async {
-    final source = img.decodeImage(await original.readAsBytes());
+    final source = await _decodeImageIsolate(await original.readAsBytes());
     if (source == null) {
       throw StateError('The selected image could not be decoded.');
     }
@@ -456,7 +468,7 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
   String _messageFor(Object error) {
     if (error is DioException && error.response?.statusCode != 500) {
       final detail = error.response?.data is Map ? (error.response!.data as Map)['detail'] : null;
-      if (detail is String && detail.startsWith('No clothing item')) {
+      if (detail is String && detail.isNotEmpty) {
         return detail;
       }
     }

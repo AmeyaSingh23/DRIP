@@ -165,11 +165,21 @@ async def list_outfits(
             .limit(100)
         )
     ).all()
-    results = []
-    for outfit in outfits:
-        _, items = await _outfit_with_items(outfit.id, current_user.id, session)
-        results.append(_outfit_response(outfit, items))
-    return results
+    outfit_ids = [outfit.id for outfit in outfits]
+    items_by_outfit: dict[UUID, list[ClothingItem]] = {oid: [] for oid in outfit_ids}
+    if outfit_ids:
+        all_items = (
+            await session.execute(
+                select(OutfitItem.outfit_id, ClothingItem)
+                .join(ClothingItem, OutfitItem.clothing_item_id == ClothingItem.id)
+                .where(OutfitItem.outfit_id.in_(outfit_ids))
+                .order_by(OutfitItem.outfit_id, OutfitItem.display_order)
+            )
+        ).all()
+        for oid, item in all_items:
+            items_by_outfit[oid].append(item)
+            
+    return [_outfit_response(outfit, items_by_outfit[outfit.id]) for outfit in outfits]
 
 
 @router.get("/{outfit_id}", response_model=OutfitResponse)

@@ -29,6 +29,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _startTimer();
+  }
+
+  void _startTimer() {
+    _sessionTimer?.cancel();
     _sessionTimer = Timer.periodic(
       const Duration(seconds: 30),
       (_) => ref.read(authControllerProvider.notifier).validateSession(),
@@ -46,6 +51,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       ref.read(authControllerProvider.notifier).validateSession();
+      _startTimer();
+    } else if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      _sessionTimer?.cancel();
     }
   }
 
