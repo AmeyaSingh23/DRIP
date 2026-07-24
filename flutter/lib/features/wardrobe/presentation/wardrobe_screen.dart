@@ -26,7 +26,7 @@ class WardrobeScreen extends ConsumerStatefulWidget {
   ConsumerState<WardrobeScreen> createState() => _WardrobeScreenState();
 }
 
-class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
+class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTickerProviderStateMixin {
   static const _baseCategories = [
     'All',
     'Tops',
@@ -42,11 +42,16 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
   final _searchFocusNode = FocusNode();
   final _scrollController = ScrollController();
   Timer? _searchDebounce;
+  late final AnimationController _emptyIconController;
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    _emptyIconController = AnimationController(
+      duration: const Duration(seconds: 3),
+      vsync: this,
+    )..repeat(reverse: true);
     Future.microtask(() {
       ref.read(wardrobeItemsProvider.notifier).load(refresh: true);
     });
@@ -60,6 +65,7 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
 
   @override
   void dispose() {
+    _emptyIconController.dispose();
     _searchDebounce?.cancel();
     _scrollController.dispose();
     _searchController.dispose();
@@ -234,18 +240,26 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: isDark
-                            ? Colors.white.withOpacity(0.08)
-                            : Theme.of(context).colorScheme.primary.withOpacity(0.15),
+                    ScaleTransition(
+                      scale: Tween<double>(begin: 0.95, end: 1.05).animate(
+                        CurvedAnimation(
+                          parent: _emptyIconController,
+                          curve: Curves.easeInOut,
+                        ),
                       ),
-                      child: Icon(
-                        icon,
-                        size: 36,
-                        color: Theme.of(context).colorScheme.onSurface,
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isDark
+                              ? Colors.white.withOpacity(0.08)
+                              : Theme.of(context).colorScheme.primary.withOpacity(0.15),
+                        ),
+                        child: Icon(
+                          icon,
+                          size: 36,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -263,6 +277,22 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                           ),
+                    ),
+                    const SizedBox(height: 24),
+                    FilledButton.icon(
+                      onPressed: () {
+                        context.push(
+                          '/wardrobe/upload',
+                          extra: UploadRouteArgs(email: widget.email),
+                        );
+                      },
+                      style: FilledButton.styleFrom(
+                        foregroundColor: Theme.of(context).brightness == Brightness.dark
+                            ? Colors.white
+                            : Theme.of(context).colorScheme.onSurface,
+                      ),
+                      icon: const Icon(Icons.add_photo_alternate_outlined),
+                      label: const Text('Add your first item'),
                     ),
                   ],
                 ),
@@ -426,8 +456,29 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> {
                                 Expanded(
                                   child: Padding(
                                     padding: const EdgeInsets.all(10),
-                                    child: CachedWardrobeImage(
-                                      url: item.cloudinaryUrl,
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: Theme.of(context).brightness == Brightness.dark
+                                              ? Colors.white.withOpacity(0.15)
+                                              : Colors.white.withOpacity(0.6),
+                                          width: 1.5,
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(0.08),
+                                            blurRadius: 6,
+                                            offset: const Offset(0, 3),
+                                          ),
+                                        ],
+                                      ),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(10),
+                                        child: CachedWardrobeImage(
+                                          url: item.cloudinaryUrl,
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ),

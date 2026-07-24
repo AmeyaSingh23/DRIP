@@ -10,7 +10,7 @@ class AppTheme {
         primary: Color(0xFFFFB6C1),
         secondary: Color(0xFFFF6B9D), // Hot Pink
         surface: Color(0x66FFFFFF), // Frosted glass light
-        onPrimary: Colors.white,
+        onPrimary: Color(0xFF2D151E),
         onSurface: Color(0xFFC2185B), // Deep Rose for text
       ),
       snackBarTheme: SnackBarThemeData(

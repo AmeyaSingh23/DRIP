@@ -628,7 +628,7 @@ class _CreativeSpaceScreenState extends ConsumerState<CreativeSpaceScreen> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeInOut,
-          width: _sidebarCollapsed ? 36 : 116,
+          width: _sidebarCollapsed ? 48 : 116,
           decoration: BoxDecoration(
             color: isDark ? Colors.black.withOpacity(0.25) : Colors.white.withOpacity(0.40),
             border: Border(
@@ -891,17 +891,22 @@ class _CreativeSpaceScreenState extends ConsumerState<CreativeSpaceScreen> {
     final offset = _itemOffsets[itemId] ?? Offset.zero;
     final scale = _itemScales[itemId] ?? 1;
     return Positioned(
-      left: rect.center.dx + offset.dx + rect.width * scale / 2 - 20,
-      top: rect.center.dy + offset.dy - rect.height * scale / 2 - 12,
-      child: Material(
-        color: Colors.black54,
-        shape: const CircleBorder(),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: () => _remove(itemId),
-          child: const Padding(
-            padding: EdgeInsets.all(5),
-            child: Icon(Icons.close, size: 17, color: Colors.white),
+      left: rect.center.dx + offset.dx + (rect.width * scale) / 2 - 32,
+      top: rect.center.dy + offset.dy - (rect.height * scale) / 2 - 24,
+      child: GestureDetector(
+        onTap: () => _remove(itemId),
+        child: Container(
+          width: 48,
+          height: 48,
+          alignment: Alignment.center,
+          color: Colors.transparent,
+          child: Material(
+            color: Colors.black54,
+            shape: const CircleBorder(),
+            child: const Padding(
+              padding: EdgeInsets.all(6),
+              child: Icon(Icons.close, size: 16, color: Colors.white),
+            ),
           ),
         ),
       ),

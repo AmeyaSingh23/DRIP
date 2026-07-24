@@ -88,27 +88,30 @@ class _GoogleSignInScreenState extends ConsumerState<GoogleSignInScreen> {
                             ),
                           ),
                           const SizedBox(height: 24),
-                          RichText(
-                            textAlign: TextAlign.center,
-                            text: TextSpan(
-                              style: GoogleFonts.playfairDisplay(
-                                fontSize: 36,
-                                fontWeight: FontWeight.w600,
-                                color: isDark ? const Color(0xFFFFB6C1) : const Color(0xFFC2185B),
-                                height: 1.1,
-                              ),
-                              children: [
-                                const TextSpan(text: 'La Maison\nde\n'),
-                                TextSpan(
-                                  text: 'Miniso',
-                                  style: GoogleFonts.playfairDisplay(
-                                    fontWeight: FontWeight.w900,
-                                    fontStyle: FontStyle.italic,
-                                    fontSize: 42,
-                                    color: isDark ? const Color(0xFFFFB6C1) : const Color(0xFFC2185B),
-                                  ),
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: RichText(
+                              textAlign: TextAlign.center,
+                              text: TextSpan(
+                                style: GoogleFonts.playfairDisplay(
+                                  fontSize: 36,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? const Color(0xFFFFB6C1) : const Color(0xFFC2185B),
+                                  height: 1.1,
                                 ),
-                              ],
+                                children: [
+                                  const TextSpan(text: 'La Maison\nde\n'),
+                                  TextSpan(
+                                    text: 'Miniso',
+                                    style: GoogleFonts.playfairDisplay(
+                                      fontWeight: FontWeight.w900,
+                                      fontStyle: FontStyle.italic,
+                                      fontSize: 42,
+                                      color: isDark ? const Color(0xFFFFB6C1) : const Color(0xFFC2185B),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                           const SizedBox(height: 16),

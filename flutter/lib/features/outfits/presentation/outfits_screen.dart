@@ -21,15 +21,26 @@ class OutfitsScreen extends ConsumerStatefulWidget {
   ConsumerState<OutfitsScreen> createState() => _OutfitsScreenState();
 }
 
-class _OutfitsScreenState extends ConsumerState<OutfitsScreen> {
+class _OutfitsScreenState extends ConsumerState<OutfitsScreen> with SingleTickerProviderStateMixin {
   String? _schedulingId; // tracks outfit being scheduled
+  late final AnimationController _emptyIconController;
 
   @override
   void initState() {
     super.initState();
+    _emptyIconController = AnimationController(
+      duration: const Duration(seconds: 3),
+      vsync: this,
+    )..repeat(reverse: true);
     Future.microtask(() {
       ref.read(outfitsProvider.notifier).load();
     });
+  }
+
+  @override
+  void dispose() {
+    _emptyIconController.dispose();
+    super.dispose();
   }
 
   Future<void> _delete(SavedOutfit outfit) async {
@@ -131,18 +142,26 @@ class _OutfitsScreenState extends ConsumerState<OutfitsScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: isDark
-                            ? Colors.white.withOpacity(0.08)
-                            : Theme.of(context).colorScheme.primary.withOpacity(0.15),
+                    ScaleTransition(
+                      scale: Tween<double>(begin: 0.95, end: 1.05).animate(
+                        CurvedAnimation(
+                          parent: _emptyIconController,
+                          curve: Curves.easeInOut,
+                        ),
                       ),
-                      child: Icon(
-                        icon,
-                        size: 36,
-                        color: Theme.of(context).colorScheme.onSurface,
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isDark
+                              ? Colors.white.withOpacity(0.08)
+                              : Theme.of(context).colorScheme.primary.withOpacity(0.15),
+                        ),
+                        child: Icon(
+                          icon,
+                          size: 36,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 16),

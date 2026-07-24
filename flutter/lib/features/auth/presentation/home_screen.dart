@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../calendar/presentation/calendar_screen.dart';
@@ -23,27 +24,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     with WidgetsBindingObserver {
   var _index = 0;
   final _tabHistory = <int>[];
-  Timer? _sessionTimer;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _startTimer();
-  }
-
-  void _startTimer() {
-    _sessionTimer?.cancel();
-    _sessionTimer = Timer.periodic(
-      const Duration(seconds: 30),
-      (_) => ref.read(authControllerProvider.notifier).validateSession(),
-    );
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _sessionTimer?.cancel();
     super.dispose();
   }
 
@@ -51,29 +41,58 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       ref.read(authControllerProvider.notifier).validateSession();
-      _startTimer();
-    } else if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
-      _sessionTimer?.cancel();
+      setState(() {
+        _lastPressedAt = null;
+      });
     }
   }
+
+  DateTime? _lastPressedAt;
 
   void _selectTab(int value) {
     if (value == _index) return;
     setState(() {
-      _tabHistory.add(_index);
+      if (value == 0) {
+        _tabHistory.clear();
+      } else {
+        _tabHistory.remove(_index);
+        _tabHistory.add(_index);
+        _tabHistory.remove(value);
+      }
       _index = value;
     });
   }
 
   @override
-  Widget build(BuildContext context) => PopScope(
-    canPop: _tabHistory.isEmpty,
-    onPopInvokedWithResult: (didPop, _) {
-      if (!didPop && _tabHistory.isNotEmpty) {
-        setState(() => _index = _tabHistory.removeLast());
-      }
-    },
-    child: Scaffold(
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final isDoubleBackActive = _lastPressedAt != null &&
+        now.difference(_lastPressedAt!) <= const Duration(seconds: 2);
+    final canPop = _index == 0 && _tabHistory.isEmpty && isDoubleBackActive;
+
+    return PopScope(
+      canPop: canPop,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (_tabHistory.isNotEmpty) {
+          setState(() {
+            _index = _tabHistory.removeLast();
+          });
+          return;
+        }
+
+        // Wardrobe tab with empty history
+        setState(() {
+          _lastPressedAt = DateTime.now();
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Press back again to exit'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      },
+      child: Scaffold(
       extendBody: true,
       body: SlidingIndexedStack(
         index: _index,
@@ -130,6 +149,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 ),
     ),
   );
+}
 }
 
 class SlidingIndexedStack extends StatefulWidget {

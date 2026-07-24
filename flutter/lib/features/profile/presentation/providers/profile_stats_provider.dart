@@ -12,11 +12,11 @@ final profileStatsProvider =
     );
 
 class ProfileStatsNotifier extends Notifier<AsyncValue<UserStats>> {
-  late final AuthRepository _authRepository;
+  late AuthRepository _authRepository;
 
   @override
   AsyncValue<UserStats> build() {
-    _authRepository = ref.watch(authRepositoryProvider);
+    _authRepository = ref.read(authRepositoryProvider);
     ref.listen(wardrobeRevisionProvider, (prev, next) {
       load();
     });

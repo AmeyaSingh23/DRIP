@@ -113,7 +113,6 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
       'This permanently deletes the item. It cannot be undone.',
     );
     if (confirmed != true) return;
-
     final original = [..._items];
     setState(() {
       _items = _items.where((i) => i.id != item.id).toList();
@@ -138,7 +137,6 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
       'This permanently deletes the outfit. It cannot be undone.',
     );
     if (confirmed != true) return;
-
     final original = [..._outfitsList];
     setState(() {
       _outfitsList = _outfitsList.where((o) => o.id != outfit.id).toList();

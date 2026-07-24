@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
@@ -366,7 +367,74 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 _buildGlassTile(
                   icon: Icons.logout,
                   title: 'Sign out',
-                  onTap: () => ref.read(authControllerProvider.notifier).logout(),
+                  onTap: () async {
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      barrierColor: Colors.black26,
+                      builder: (context) => Dialog(
+                        backgroundColor: Colors.transparent,
+                        elevation: 0,
+                        insetPadding: const EdgeInsets.all(24),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(28),
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                            child: Container(
+                              color: Theme.of(context).brightness == Brightness.dark
+                                  ? Colors.grey[900]!.withOpacity(0.60)
+                                  : Colors.white.withOpacity(0.60),
+                              padding: const EdgeInsets.all(24),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Sign out?',
+                                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: Theme.of(context).colorScheme.onSurface,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    'Are you sure you want to sign out of your account?',
+                                    style: TextStyle(
+                                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 24),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context, false),
+                                        style: TextButton.styleFrom(
+                                          foregroundColor: Theme.of(context).colorScheme.onSurface,
+                                        ),
+                                        child: const Text('Cancel'),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      FilledButton(
+                                        onPressed: () => Navigator.pop(context, true),
+                                        style: FilledButton.styleFrom(
+                                          backgroundColor: Colors.redAccent,
+                                          foregroundColor: Colors.white,
+                                        ),
+                                        child: const Text('Sign out'),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                    if (confirmed == true && mounted) {
+                      ref.read(authControllerProvider.notifier).logout();
+                    }
+                  },
                   overrideColor: Colors.redAccent,
                 ),
               ]),

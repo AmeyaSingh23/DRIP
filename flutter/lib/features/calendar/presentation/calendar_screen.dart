@@ -95,11 +95,11 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     final entryDate = _date;
     setState(() => _actionInProgress = true);
     try {
-      var outfits = ref.read(outfitsProvider).outfits;
-      if (outfits.isEmpty) {
+      final outfitsState = ref.read(outfitsProvider);
+      if (!outfitsState.hasLoaded) {
         await ref.read(outfitsProvider.notifier).load();
-        outfits = ref.read(outfitsProvider).outfits;
       }
+      final outfits = ref.read(outfitsProvider).outfits;
       if (!mounted) return;
       final result = await showDialog<_ScheduleValues>(
         context: context,

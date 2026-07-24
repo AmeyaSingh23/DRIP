@@ -5,6 +5,9 @@ import '../../../core/network/api_client.dart';
 import '../../../core/storage/secure_token_storage.dart';
 import '../data/auth_repository.dart';
 import '../domain/auth_session.dart';
+import '../../wardrobe/presentation/providers/wardrobe_provider.dart';
+import '../../outfits/presentation/providers/outfits_provider.dart';
+import '../../profile/presentation/providers/profile_stats_provider.dart';
 
 final apiClientProvider = Provider<ApiClient>((ref) => ApiClient());
 final secureTokenStorageProvider = Provider<SecureTokenStorage>(
@@ -32,8 +35,15 @@ final class AuthController extends AsyncNotifier<AuthSession?> {
       return AuthSession(accessToken: token, user: user);
     } on DioException {
       await _repository.logout();
+      _clearUserCache();
       return null;
     }
+  }
+
+  void _clearUserCache() {
+    ref.invalidate(wardrobeItemsProvider);
+    ref.invalidate(outfitsProvider);
+    ref.invalidate(profileStatsProvider);
   }
 
   Future<String?> googleSignIn() async {
@@ -55,6 +65,7 @@ final class AuthController extends AsyncNotifier<AuthSession?> {
     };
     state = const AsyncLoading();
     await _repository.logout();
+    _clearUserCache();
     state = const AsyncData(null);
   }
 
@@ -69,6 +80,7 @@ final class AuthController extends AsyncNotifier<AuthSession?> {
     } on DioException catch (error) {
       if (error.response?.statusCode != 401) return;
       await _repository.logout();
+      _clearUserCache();
       state = const AsyncData(null);
     }
   }

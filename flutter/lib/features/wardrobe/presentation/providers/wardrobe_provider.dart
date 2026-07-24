@@ -17,6 +17,7 @@ class WardrobeState {
   final int offset;
   final String category;
   final String search;
+  final bool hasLoaded;
   final String? error;
 
   WardrobeState({
@@ -27,18 +28,20 @@ class WardrobeState {
     required this.offset,
     required this.category,
     required this.search,
+    required this.hasLoaded,
     this.error,
   });
 
   factory WardrobeState.initial() {
     return WardrobeState(
       items: const [],
-      loading: false,
+      loading: true,
       loadingMore: false,
       hasMore: true,
       offset: 0,
       category: 'All',
       search: '',
+      hasLoaded: false,
     );
   }
 
@@ -50,6 +53,7 @@ class WardrobeState {
     int? offset,
     String? category,
     String? search,
+    bool? hasLoaded,
     String? error,
   }) {
     return WardrobeState(
@@ -60,6 +64,7 @@ class WardrobeState {
       offset: offset ?? this.offset,
       category: category ?? this.category,
       search: search ?? this.search,
+      hasLoaded: hasLoaded ?? this.hasLoaded,
       error: error,
     );
   }
@@ -71,11 +76,11 @@ final wardrobeItemsProvider =
     );
 
 class WardrobeItemsNotifier extends Notifier<WardrobeState> {
-  late final WardrobeRepository _repository;
+  late WardrobeRepository _repository;
 
   @override
   WardrobeState build() {
-    _repository = ref.watch(wardrobeRepositoryProvider);
+    _repository = ref.read(wardrobeRepositoryProvider);
     ref.listen(wardrobeRevisionProvider, (prev, next) {
       load(refresh: true);
     });
@@ -90,7 +95,7 @@ class WardrobeItemsNotifier extends Notifier<WardrobeState> {
     if (!hasMore || (current.loadingMore && !refresh)) return;
 
     state = state.copyWith(
-      loading: refresh && current.items.isEmpty,
+      loading: (refresh || !current.hasLoaded) && current.items.isEmpty,
       loadingMore: !refresh && current.items.isNotEmpty,
       error: null,
     );
@@ -110,6 +115,7 @@ class WardrobeItemsNotifier extends Notifier<WardrobeState> {
         hasMore: items.length == 30,
         loading: false,
         loadingMore: false,
+        hasLoaded: true,
       );
     } catch (e) {
       state = state.copyWith(

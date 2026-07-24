@@ -12,29 +12,34 @@ final outfitRepositoryProvider = Provider<OutfitRepository>(
 class OutfitsState {
   final List<SavedOutfit> outfits;
   final bool loading;
+  final bool hasLoaded;
   final String? error;
 
   OutfitsState({
     required this.outfits,
     required this.loading,
+    required this.hasLoaded,
     this.error,
   });
 
   factory OutfitsState.initial() {
     return OutfitsState(
       outfits: const [],
-      loading: false,
+      loading: true,
+      hasLoaded: false,
     );
   }
 
   OutfitsState copyWith({
     List<SavedOutfit>? outfits,
     bool? loading,
+    bool? hasLoaded,
     String? error,
   }) {
     return OutfitsState(
       outfits: outfits ?? this.outfits,
       loading: loading ?? this.loading,
+      hasLoaded: hasLoaded ?? this.hasLoaded,
       error: error,
     );
   }
@@ -47,11 +52,11 @@ final outfitsProvider =
     );
 
 class OutfitsNotifier extends Notifier<OutfitsState> {
-  late final OutfitRepository _repository;
+  late OutfitRepository _repository;
 
   @override
   OutfitsState build() {
-    _repository = ref.watch(outfitRepositoryProvider);
+    _repository = ref.read(outfitRepositoryProvider);
     ref.listen(outfitRevisionProvider, (prev, next) {
       load(refresh: true);
     });
@@ -59,7 +64,7 @@ class OutfitsNotifier extends Notifier<OutfitsState> {
   }
 
   Future<void> load({bool refresh = false}) async {
-    if (state.loading) return;
+    if (state.loading && state.hasLoaded) return;
 
     state = state.copyWith(loading: state.outfits.isEmpty || refresh, error: null);
 
@@ -68,6 +73,7 @@ class OutfitsNotifier extends Notifier<OutfitsState> {
       state = state.copyWith(
         outfits: outfits,
         loading: false,
+        hasLoaded: true,
       );
     } catch (e) {
       state = state.copyWith(
