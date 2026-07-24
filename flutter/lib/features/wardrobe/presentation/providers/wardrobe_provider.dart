@@ -92,7 +92,7 @@ class WardrobeItemsNotifier extends Notifier<WardrobeState> {
     int offset = refresh ? 0 : current.offset;
     bool hasMore = refresh ? true : current.hasMore;
 
-    if (!hasMore || (current.loadingMore && !refresh)) return;
+    if (!hasMore || ((current.loading || current.loadingMore) && !refresh)) return;
 
     state = state.copyWith(
       loading: (refresh || !current.hasLoaded) && current.items.isEmpty,
