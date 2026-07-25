@@ -13,6 +13,8 @@ final profileStatsProvider =
 
 class ProfileStatsNotifier extends Notifier<AsyncValue<UserStats>> {
   late AuthRepository _authRepository;
+  bool _requestInFlight = false;
+  bool _reloadPending = false;
 
   @override
   AsyncValue<UserStats> build() {
@@ -29,11 +31,23 @@ class ProfileStatsNotifier extends Notifier<AsyncValue<UserStats>> {
   }
 
   Future<void> load() async {
+    if (_requestInFlight) {
+      _reloadPending = true;
+      return;
+    }
+    _requestInFlight = true;
+    state = const AsyncValue.loading();
     try {
       final stats = await _authRepository.stats();
       state = AsyncValue.data(stats);
     } catch (e, stack) {
       state = AsyncValue.error(e, stack);
+    } finally {
+      _requestInFlight = false;
+      if (_reloadPending) {
+        _reloadPending = false;
+        await load();
+      }
     }
   }
 

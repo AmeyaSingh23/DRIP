@@ -1,6 +1,7 @@
 class ClothingItemUsage {
   const ClothingItemUsage({
     required this.outfitCount,
+    this.outfitsHasMore = false,
     this.outfits = const [],
     this.calendarHistory = const [],
   });
@@ -8,6 +9,7 @@ class ClothingItemUsage {
   factory ClothingItemUsage.fromJson(Map<String, dynamic> json) =>
       ClothingItemUsage(
         outfitCount: json['outfit_count'] as int? ?? 0,
+        outfitsHasMore: json['outfits_has_more'] as bool? ?? false,
         outfits:
             (json['outfits'] as List<dynamic>? ?? const [])
                 .whereType<Map<String, dynamic>>()
@@ -21,6 +23,7 @@ class ClothingItemUsage {
       );
 
   final int outfitCount;
+  final bool outfitsHasMore;
   final List<OutfitUsage> outfits;
   final List<CalendarUsage> calendarHistory;
 }

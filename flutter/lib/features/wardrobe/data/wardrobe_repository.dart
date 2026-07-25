@@ -158,10 +158,13 @@ final class WardrobeRepository {
 
   Future<ClothingItemUsage> usage({
     required String itemId,
+    int offset = 0,
+    int limit = 5,
     
   }) async {
     final response = await _client.dio.get<Map<String, dynamic>>(
       '/api/v1/items/$itemId/usage',
+      queryParameters: {'offset': offset, 'limit': limit},
       
     );
     return ClothingItemUsage.fromJson(response.data!);

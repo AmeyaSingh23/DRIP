@@ -39,7 +39,7 @@ class RetryInterceptor extends Interceptor {
   Future<void> onError(DioException err, ErrorInterceptorHandler handler) async {
     final requestOptions = err.requestOptions;
     final int attempt = requestOptions.extra['retry_attempt'] as int? ?? 0;
-    if (attempt >= 2) {
+    if (attempt >= 1) {
       return handler.next(err);
     }
 
@@ -61,8 +61,9 @@ class RetryInterceptor extends Interceptor {
     if (shouldRetry) {
       requestOptions.extra['retry_attempt'] = attempt + 1;
       
-      // Delay before retrying (exponential backoff: 1s, 2s)
-      await Future.delayed(Duration(seconds: attempt + 1));
+      // One short retry for transient GET failures. POST requests, including
+      // AI calls, are never retried here, so this cannot multiply provider usage.
+      await Future.delayed(const Duration(milliseconds: 500));
       
       try {
         final response = await dio.fetch(requestOptions);

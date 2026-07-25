@@ -85,17 +85,22 @@ async def get_stats(
     from app.db.models.outfit import Outfit
     from sqlalchemy import func  # type: ignore
 
-    items_count = await session.scalar(
-        select(func.count(ClothingItem.id))
-        .where(ClothingItem.user_id == current_user.id, ClothingItem.archived_at.is_(None))
+    counts = await session.execute(
+        select(
+            select(func.count(ClothingItem.id))
+            .where(ClothingItem.user_id == current_user.id, ClothingItem.archived_at.is_(None))
+            .scalar_subquery()
+            .label("items_count"),
+            select(func.count(Outfit.id))
+            .where(Outfit.user_id == current_user.id, Outfit.archived_at.is_(None))
+            .scalar_subquery()
+            .label("outfits_count"),
+        )
     )
-    outfits_count = await session.scalar(
-        select(func.count(Outfit.id))
-        .where(Outfit.user_id == current_user.id, Outfit.archived_at.is_(None))
-    )
+    row = counts.one()
     return UserStatsResponse(
-        total_items=items_count or 0,
-        saved_outfits=outfits_count or 0
+        total_items=row.items_count or 0,
+        saved_outfits=row.outfits_count or 0,
     )
 
 

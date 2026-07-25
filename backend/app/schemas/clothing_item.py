@@ -56,4 +56,5 @@ class CalendarUsage(BaseModel):
 class ClothingItemUsageResponse(BaseModel):
     outfit_count: int = Field(ge=0)
     outfits: list[OutfitUsage] = Field(default_factory=list)
+    outfits_has_more: bool = False
     calendar_history: list[CalendarUsage] = Field(default_factory=list)

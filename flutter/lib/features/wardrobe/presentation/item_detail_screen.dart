@@ -33,6 +33,7 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
   String? _error;
   bool _loading = true;
   bool _mutating = false;
+  bool _loadingMoreUsage = false;
   int _loadEpoch = 0;
 
   @override
@@ -75,6 +76,30 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
       return data['detail'] as String;
     }
     return 'Could not load this wardrobe item.';
+  }
+
+  Future<void> _loadMoreUsage() async {
+    final usage = _usage;
+    if (_loadingMoreUsage || usage == null || !usage.outfitsHasMore) return;
+    setState(() => _loadingMoreUsage = true);
+    try {
+      final next = await _repository.usage(
+        itemId: widget.itemId,
+        offset: usage.outfits.length,
+        limit: 5,
+      );
+      if (!mounted) return;
+      setState(() {
+        _usage = ClothingItemUsage(
+          outfitCount: next.outfitCount,
+          outfits: [...usage.outfits, ...next.outfits],
+          outfitsHasMore: next.outfitsHasMore,
+          calendarHistory: usage.calendarHistory,
+        );
+      });
+    } finally {
+      if (mounted) setState(() => _loadingMoreUsage = false);
+    }
   }
 
   Future<void> _edit() async {
@@ -550,6 +575,24 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
                             onTap: () => context.push(
                               '/outfits/${outfit.id}',
                               
+                            ),
+                          ),
+                        ),
+                      if (usage.outfitsHasMore)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: TextButton.icon(
+                              onPressed: _loadingMoreUsage ? null : _loadMoreUsage,
+                              icon: _loadingMoreUsage
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : const Icon(Icons.expand_more),
+                              label: Text(_loadingMoreUsage ? 'Loading…' : 'Load 5 more'),
                             ),
                           ),
                         ),

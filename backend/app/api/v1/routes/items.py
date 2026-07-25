@@ -8,7 +8,7 @@ from uuid import UUID
 import httpx  # type: ignore
 from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, Response, UploadFile, status  # type: ignore
 from PIL import Image, UnidentifiedImageError  # type: ignore
-from sqlalchemy import String, cast, or_, select  # type: ignore
+from sqlalchemy import String, cast, func, or_, select  # type: ignore
 from sqlalchemy.ext.asyncio import AsyncSession  # type: ignore
 
 from app.api.deps import get_current_user, get_db_session
@@ -136,10 +136,17 @@ async def get_item(
 @router.get("/{item_id}/usage", response_model=ClothingItemUsageResponse)
 async def get_item_usage(
     item_id: UUID,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=5, ge=1, le=5),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
 ) -> ClothingItemUsageResponse:
     item = await _owned_item_or_404(item_id, current_user.id, session)
+    outfit_count = await session.scalar(
+        select(func.count(Outfit.id))
+        .join(OutfitItem, OutfitItem.outfit_id == Outfit.id)
+        .where(OutfitItem.clothing_item_id == item.id, Outfit.user_id == current_user.id)
+    ) or 0
     outfit_rows = (
         await session.execute(
             select(Outfit.id, Outfit.name)
@@ -149,26 +156,22 @@ async def get_item_usage(
                 Outfit.user_id == current_user.id,
             )
             .order_by(Outfit.created_at.desc())
+            .offset(offset)
+            .limit(limit)
         )
     ).all()
-    outfit_ids = [outfit_id for outfit_id, _ in outfit_rows]
-    calendar_rows = []
-    if outfit_ids:
-        calendar_rows = (
-            await session.execute(
-                select(CalendarEntry.entry_date, CalendarEntry.slot, Outfit.id, Outfit.name)
-                .join(Outfit, CalendarEntry.outfit_id == Outfit.id)
-                .where(
-                    CalendarEntry.user_id == current_user.id,
-                    CalendarEntry.outfit_id.in_(outfit_ids),
-                )
-                .order_by(CalendarEntry.entry_date.desc())
-                .limit(20)
-            )
-        ).all()
+    calendar_rows = (await session.execute(
+        select(CalendarEntry.entry_date, CalendarEntry.slot, Outfit.id, Outfit.name)
+        .join(Outfit, CalendarEntry.outfit_id == Outfit.id)
+        .join(OutfitItem, OutfitItem.outfit_id == Outfit.id)
+        .where(CalendarEntry.user_id == current_user.id, OutfitItem.clothing_item_id == item.id)
+        .order_by(CalendarEntry.entry_date.desc())
+        .limit(20)
+    )).all()
     return ClothingItemUsageResponse(
-        outfit_count=len(outfit_rows),
+        outfit_count=outfit_count,
         outfits=[OutfitUsage(outfit_id=outfit_id, outfit_name=name) for outfit_id, name in outfit_rows],
+        outfits_has_more=offset + len(outfit_rows) < outfit_count,
         calendar_history=[
             CalendarUsage(
                 entry_date=entry_date,

@@ -53,6 +53,8 @@ final outfitsProvider =
 
 class OutfitsNotifier extends Notifier<OutfitsState> {
   late OutfitRepository _repository;
+  bool _requestInFlight = false;
+  bool _refreshPending = false;
 
   @override
   OutfitsState build() {
@@ -64,7 +66,13 @@ class OutfitsNotifier extends Notifier<OutfitsState> {
   }
 
   Future<void> load({bool refresh = false}) async {
-    if (state.loading && state.hasLoaded) return;
+    if (_requestInFlight) {
+      if (refresh) _refreshPending = true;
+      return;
+    }
+    if (!refresh && state.hasLoaded && !state.loading) return;
+
+    _requestInFlight = true;
 
     state = state.copyWith(loading: state.outfits.isEmpty || refresh, error: null);
 
@@ -80,6 +88,12 @@ class OutfitsNotifier extends Notifier<OutfitsState> {
         loading: false,
         error: e.toString(),
       );
+    } finally {
+      _requestInFlight = false;
+      if (_refreshPending) {
+        _refreshPending = false;
+        await load(refresh: true);
+      }
     }
   }
 

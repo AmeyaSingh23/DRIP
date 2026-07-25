@@ -77,6 +77,9 @@ final wardrobeItemsProvider =
 
 class WardrobeItemsNotifier extends Notifier<WardrobeState> {
   late WardrobeRepository _repository;
+  bool _requestInFlight = false;
+  bool _refreshPending = false;
+  int _requestGeneration = 0;
 
   @override
   WardrobeState build() {
@@ -88,11 +91,18 @@ class WardrobeItemsNotifier extends Notifier<WardrobeState> {
   }
 
   Future<void> load({bool refresh = false}) async {
+    if (_requestInFlight) {
+      if (refresh) _refreshPending = true;
+      return;
+    }
     final current = state;
     int offset = refresh ? 0 : current.offset;
     bool hasMore = refresh ? true : current.hasMore;
 
     if (!hasMore || ((current.loading || current.loadingMore) && !refresh)) return;
+
+    _requestInFlight = true;
+    final generation = ++_requestGeneration;
 
     state = state.copyWith(
       loading: (refresh || !current.hasLoaded) && current.items.isEmpty,
@@ -109,6 +119,7 @@ class WardrobeItemsNotifier extends Notifier<WardrobeState> {
       );
 
       final newItems = refresh ? items : [...state.items, ...items];
+      if (generation != _requestGeneration) return;
       state = state.copyWith(
         items: newItems,
         offset: offset + items.length,
@@ -118,11 +129,18 @@ class WardrobeItemsNotifier extends Notifier<WardrobeState> {
         hasLoaded: true,
       );
     } catch (e) {
+      if (generation != _requestGeneration) return;
       state = state.copyWith(
         loading: false,
         loadingMore: false,
         error: e.toString(),
       );
+    } finally {
+      _requestInFlight = false;
+      if (_refreshPending) {
+        _refreshPending = false;
+        await load(refresh: true);
+      }
     }
   }
 
