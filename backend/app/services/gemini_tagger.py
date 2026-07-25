@@ -32,7 +32,7 @@ Set is_worn_on_person to true when the prominent garment is being worn by a visi
 
 Use exactly one broad category: Tops, Bottoms, Outerwear, Shoes, Dresses, Accessories, Uniform, or Custom.
 Examples: T-shirt, polo, shirt, blouse, hoodie, and sweater are Tops. Shorts, boxer shorts, briefs, trousers, jeans, and skirts are Bottoms.
-The item_name is specific (for example, "T-shirt", "US Polo Assn briefs", or "Checkered boxer shorts").
+The item_name must be a concise but descriptive wardrobe name, not just a generic class. Include the clearly visible color, garment type, and useful visible details such as sleeve or strap style, neckline, length, silhouette, pattern, fabric/finish, or distinctive construction. Good examples: "Pink racerback tank top", "Navy long-sleeve mermaid gown", "Smocked pleated dress with puff sleeves", "Black satin lace panties", and "Black-and-white checkered boxer shorts". If a detail is not visible, omit it rather than guessing. Preserve a brand only when it is clearly readable in the image; never invent one.
 The color must be exactly one of: Black, White, Beige, Navy, Red, Green, Blue, Pink, Brown, Grey, Yellow, Purple, Orange, Multi, Other, or null.
 Use Multi for a clearly multi-colour garment. Do not return descriptive shades such as "dusty pink" or "black and white".
 Return only JSON matching the supplied schema. Never invent a brand, size, price, or personal detail."""

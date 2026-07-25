@@ -87,7 +87,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
-  Widget _buildStatCard(String label, int? count, IconData icon) {
+  Widget _buildStatCard(
+    String label,
+    int? count,
+    IconData icon, {
+    bool hasError = false,
+    VoidCallback? onRetry,
+  }) {
     return Expanded(
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
@@ -110,7 +116,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               children: [
                 Icon(icon, size: 28, color: Theme.of(context).colorScheme.onSurface),
                 const SizedBox(height: 12),
-                if (count == null)
+                if (count == null && hasError)
+                  InkWell(
+                    onTap: onRetry,
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Icon(
+                        Icons.refresh_rounded,
+                        size: 24,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                  )
+                else if (count == null)
                   SizedBox(
                     height: 24,
                     width: 24,
@@ -310,9 +329,29 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 // Stats Row
                 Row(
                   children: [
-                    _buildStatCard('Total Items', statsAsync.value?.totalItems, Icons.checkroom_outlined),
+                    _buildStatCard(
+                      'Total Items',
+                      statsAsync.when(
+                        data: (stats) => stats.totalItems,
+                        loading: () => null,
+                        error: (_, __) => null,
+                      ),
+                      Icons.checkroom_outlined,
+                      hasError: statsAsync.hasError,
+                      onRetry: () => ref.read(profileStatsProvider.notifier).load(),
+                    ),
                     const SizedBox(width: 12),
-                    _buildStatCard('Saved Outfits', statsAsync.value?.savedOutfits, Icons.dry_cleaning_outlined),
+                    _buildStatCard(
+                      'Saved Outfits',
+                      statsAsync.when(
+                        data: (stats) => stats.savedOutfits,
+                        loading: () => null,
+                        error: (_, __) => null,
+                      ),
+                      Icons.dry_cleaning_outlined,
+                      hasError: statsAsync.hasError,
+                      onRetry: () => ref.read(profileStatsProvider.notifier).load(),
+                    ),
                   ],
                 ),
                 
